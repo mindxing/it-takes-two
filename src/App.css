@@ -1,0 +1,180 @@
+.app {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: #f4f4f5;
+  font-family: system-ui, sans-serif;
+}
+
+.card {
+  width: 100%;
+  max-width: 420px;
+  padding: 32px;
+  border-radius: 20px;
+  background: white;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.12);
+  text-align: center;
+}
+
+h1 {
+  margin: 0 0 8px;
+  font-size: 1.8rem;
+}
+
+.subtitle {
+  margin: 0 0 28px;
+  color: #555;
+}
+
+.primary-button {
+  width: 100%;
+  padding: 18px 24px;
+  border: none;
+  border-radius: 14px;
+  font-size: 1.2rem;
+  font-weight: 700;
+  cursor: pointer;
+  background: #2563eb;
+  color: white;
+}
+
+.primary-button:hover {
+  background: #1d4ed8;
+}
+
+.workout-detail {
+  text-align: left;
+  margin-bottom: 28px;
+  font-size: 1.1rem;
+}
+
+.button-row {
+  display: flex;
+  gap: 12px;
+}
+
+.secondary-button {
+  width: 100%;
+  padding: 18px 24px;
+  border: 2px solid #d4d4d8;
+  border-radius: 14px;
+  font-size: 1.2rem;
+  font-weight: 700;
+  cursor: pointer;
+  background: white;
+  color: #333;
+}
+
+.stepper {
+  display: grid;
+  grid-template-columns: 1fr 56px 90px 56px;
+  align-items: center;
+  gap: 10px;
+  margin: 18px 0;
+  font-size: 1.2rem;
+}
+
+.stepper button {
+  padding: 12px;
+  border: none;
+  border-radius: 12px;
+  font-size: 1.5rem;
+  font-weight: 700;
+  cursor: pointer;
+  background: #e5e7eb;
+}
+
+.summary-card {
+  max-width: 680px;
+}
+
+.summary-list {
+  text-align: left;
+  margin: 24px 0;
+}
+
+.summary-exercise {
+  padding: 14px 0;
+  border-top: 1px solid #e5e7eb;
+}
+
+.summary-exercise h2 {
+  margin: 0 0 8px;
+  font-size: 1.1rem;
+}
+
+.summary-exercise p {
+  margin: 6px 0;
+}
+
+.link-button {
+  margin-top: 18px;
+  border: none;
+  background: transparent;
+  color: #555;
+  font-size: 0.95rem;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+}
+
+@media (max-width: 480px) {
+  .app {
+    padding: 12px;
+    align-items: flex-start;
+  }
+
+  .card {
+    margin-top: 16px;
+    padding: 24px 18px;
+  }
+
+  .button-row {
+    flex-direction: column;
+  }
+
+  .stepper {
+    grid-template-columns: 1fr 48px 80px 48px;
+    font-size: 1.05rem;
+  }
+}
+
+.progress-block {
+  margin-bottom: 18px;
+}
+
+.progress-text {
+  font-size: 0.9rem;
+  color: #666;
+  margin-bottom: 8px;
+}
+
+.progress-dots {
+  display: flex;
+  justify-content: center;
+  gap: 6px;
+}
+
+.progress-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 4px;
+  background: #d4d4d8;
+}
+
+.progress-dot.done {
+  background: #93c5fd;
+}
+
+.progress-dot.current {
+  background: #2563eb;
+}
