@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import "./App.css";
 import { people, workout, type Person } from "./workoutData";
+import { listenToWorkoutSession, saveWorkoutSession } from "./workoutSession";
 
 type SetStatus = "completed" | "skipped";
 
@@ -26,6 +27,38 @@ type WorkoutSession = {
   results: SetResult[];
 };
 
+type WorkoutProgressProps = {
+  exerciseIndex: number;
+};
+
+function WorkoutProgress({ exerciseIndex }: WorkoutProgressProps) {
+  const totalExercises = workout.length;
+  const currentNumber = exerciseIndex + 1;
+
+  return (
+    <div className="progress-block">
+      <div className="progress-text">
+        Exercise {currentNumber} of {totalExercises}
+      </div>
+
+      <div className="progress-dots">
+        {workout.map((item, index) => (
+          <span
+            key={item.name}
+            className={
+              index === exerciseIndex
+                ? "progress-dot current"
+                : index < exerciseIndex
+                  ? "progress-dot done"
+                  : "progress-dot"
+            }
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
 const initialSession: WorkoutSession = {
   started: false,
   complete: false,
@@ -45,158 +78,84 @@ function App() {
   const exercise = workout[session.exerciseIndex];
   const currentPerson = session.firstPerson ? session.exerciseOrder[session.currentPersonIndex] : null;
 
-  function WorkoutProgress() {
-    const totalExercises = workout.length;
-    const currentNumber = session.exerciseIndex + 1;
+  useEffect(() => {
+    const unsubscribe = listenToWorkoutSession((data) => {
+      setSession(data as WorkoutSession);
+    });
 
-    return (
-      <div className="progress-block">
-        <div className="progress-text">
-          Exercise {currentNumber} of {totalExercises}
-        </div>
-
-        <div className="progress-dots">
-          {workout.map((item, index) => (
-            <span
-              key={item.name}
-              className={
-                index === session.exerciseIndex
-                  ? "progress-dot current"
-                  : index < session.exerciseIndex
-                  ? "progress-dot done"
-                  : "progress-dot"
-              }
-            />
-          ))}
-        </div>
-      </div>
-    );
-  }
+    return () => unsubscribe();
+  }, []);
 
   function resetWorkout() {
     setSession(initialSession);
   }
 
-  function startExercise(person: Person) {
-    const order: Person[] =
-      person === "Victoria" ? ["Victoria", "Mike"] : ["Mike", "Victoria"];
+  async function recordSet(status: SetStatus) {
+    if (!session.firstPerson) return;
 
-    const target = exercise.setPlan[0];
+    const exercise = workout[session.exerciseIndex];
+    const currentPerson = session.exerciseOrder[session.currentPersonIndex];
 
-    setSession({
+    const newResult = {
+      exerciseName: exercise.name,
+      person: currentPerson,
+      setNumber: session.currentSet,
+      reps: status === "skipped" ? 0 : session.currentReps,
+      weight: session.currentWeight,
+      status,
+    };
+
+    // Start with updated results
+    let newSession = {
       ...session,
-      exerciseOrder: order,
-      firstPerson: person,
-      currentPersonIndex: 0,
-      currentSet: 1,
-      currentReps: target.reps,
-      currentWeight: exercise.defaultWeight[order[0]] + target.weightOffset,
-    });
-  }
+      results: [...session.results, newResult],
+    };
 
-  function goToNextExercise() {
-    if (session.exerciseIndex < workout.length - 1) {
-      setSession({
-        ...session,
-        exerciseIndex: session.exerciseIndex + 1,
-        firstPerson: null,
-        currentPersonIndex: 0,
-        currentSet: 1,
-      });
-    } else {
-      setSession({
-        ...session,
-        complete: true,
-      });
-    }
-  }
+    // ---- Move to next step (inline your existing logic) ----
 
-  function recordSet(status: SetStatus) {
-    if (!currentPerson) return;
-
-    // Calculate next state in one go to avoid stale closure
-    let nextPersonIndex = session.currentPersonIndex;
-    let nextSet = session.currentSet;
-    let nextReps = session.currentReps;
-    let nextWeight = session.currentWeight;
-
-    // Move from first person to second person on the same set
     if (session.currentPersonIndex === 0) {
       const nextPerson = session.exerciseOrder[1];
       const target = exercise.setPlan[session.currentSet - 1];
-      nextPersonIndex = 1;
-      nextReps = target.reps;
-      nextWeight = exercise.defaultWeight[nextPerson] + target.weightOffset;
-    }
-    // Move from second person to first person on the next set
-    else if (session.currentSet < exercise.sets) {
+
+      newSession = {
+        ...newSession,
+        currentPersonIndex: 1,
+        currentReps: target.reps,
+        currentWeight:
+          exercise.defaultWeight[nextPerson] + target.weightOffset,
+      };
+    } else if (session.currentSet < exercise.sets) {
+      const nextSet = session.currentSet + 1;
       const nextPerson = session.exerciseOrder[0];
-      const target = exercise.setPlan[session.currentSet];
-      nextPersonIndex = 0;
-      nextSet = session.currentSet + 1;
-      nextReps = target.reps;
-      nextWeight = exercise.defaultWeight[nextPerson] + target.weightOffset;
-    }
-    // Finished all sets for both people - go to next exercise
-    else if (session.exerciseIndex < workout.length - 1) {
-      setSession({
-        ...session,
-        results: [
-          ...session.results,
-          {
-            exerciseName: exercise.name,
-            person: currentPerson,
-            setNumber: session.currentSet,
-            reps: status === "skipped" ? 0 : session.currentReps,
-            weight: session.currentWeight,
-            status,
-          },
-        ],
-        exerciseIndex: session.exerciseIndex + 1,
-        firstPerson: null,
+      const target = exercise.setPlan[nextSet - 1];
+
+      newSession = {
+        ...newSession,
         currentPersonIndex: 0,
-        currentSet: 1,
-      });
-      return;
-    }
-    // Workout complete
-    else {
-      setSession({
-        ...session,
-        results: [
-          ...session.results,
-          {
-            exerciseName: exercise.name,
-            person: currentPerson,
-            setNumber: session.currentSet,
-            reps: status === "skipped" ? 0 : session.currentReps,
-            weight: session.currentWeight,
-            status,
-          },
-        ],
-        complete: true,
-      });
-      return;
+        currentSet: nextSet,
+        currentReps: target.reps,
+        currentWeight:
+          exercise.defaultWeight[nextPerson] + target.weightOffset,
+      };
+    } else {
+      // move to next exercise
+      if (session.exerciseIndex < workout.length - 1) {
+        newSession = {
+          ...newSession,
+          exerciseIndex: session.exerciseIndex + 1,
+          firstPerson: null,
+          currentPersonIndex: 0,
+          currentSet: 1,
+        };
+      } else {
+        newSession = {
+          ...newSession,
+          complete: true,
+        };
+      }
     }
 
-    setSession({
-      ...session,
-      results: [
-        ...session.results,
-        {
-          exerciseName: exercise.name,
-          person: currentPerson,
-          setNumber: session.currentSet,
-          reps: status === "skipped" ? 0 : session.currentReps,
-          weight: session.currentWeight,
-          status,
-        },
-      ],
-      currentPersonIndex: nextPersonIndex,
-      currentSet: nextSet,
-      currentReps: nextReps,
-      currentWeight: nextWeight,
-    });
+    await saveWorkoutSession(newSession);
   }
 
   if (!session.started) {
@@ -206,9 +165,26 @@ function App() {
           <h1>It Takes Two</h1>
           <p className="subtitle">Mike & Victoria's workout tracker</p>
 
-          <button className="primary-button" onClick={() => setSession({ ...session, started: true })}>
+          <button
+            className="primary-button"
+            onClick={async () => {
+              try {
+                const newSession = {
+                  ...session,
+                  started: true,
+                };
+
+                console.log("Saving session:", newSession);
+                await saveWorkoutSession(newSession);
+                console.log("Session saved");
+              } catch (error) {
+                console.error("Failed to save session:", error);
+              }
+            }}
+          >
             Start Workout
           </button>
+
         </section>
       </main>
     );
@@ -281,7 +257,7 @@ function App() {
     return (
       <main className="app">
         <section className="card">
-          <WorkoutProgress />
+          <WorkoutProgress exerciseIndex={session.exerciseIndex} />
           <h1>{exercise.name}</h1>
           <p className="subtitle">{exercise.notes}</p>
 
@@ -294,7 +270,20 @@ function App() {
             </p>
           </div>
 
-          <button className="primary-button" onClick={goToNextExercise}>
+          <button
+            className="primary-button"
+            onClick={async () => {
+              const newSession = {
+                ...session,
+                exerciseIndex: session.exerciseIndex + 1,
+                firstPerson: null,
+                currentPersonIndex: 0,
+                currentSet: 1,
+              };
+
+              await saveWorkoutSession(newSession);
+            }}
+          >
             Done with Warm-up
           </button>
         </section>
@@ -306,7 +295,7 @@ function App() {
     return (
       <main className="app">
         <section className="card">
-          <WorkoutProgress />
+          <WorkoutProgress exerciseIndex={session.exerciseIndex} />
           <h1>{exercise.name}</h1>
           <p className="subtitle">
             {exercise.sets} sets × {exercise.reps} reps
@@ -315,15 +304,42 @@ function App() {
           <h2>Who goes first?</h2>
 
           <div className="button-row">
+
             <button
               className="primary-button"
-              onClick={() => startExercise("Victoria")}
+              onClick={async () => {
+                const order: Person[] = ["Victoria", "Mike"];
+                const target = exercise.setPlan[0];
+
+                await saveWorkoutSession({
+                  ...session,
+                  exerciseOrder: order,
+                  firstPerson: "Victoria",
+                  currentPersonIndex: 0,
+                  currentSet: 1,
+                  currentReps: target.reps,
+                  currentWeight: exercise.defaultWeight["Victoria"] + target.weightOffset,
+                });
+              }}
             >
               Victoria
             </button>
             <button
               className="primary-button"
-              onClick={() => startExercise("Mike")}
+              onClick={async () => {
+                const order: Person[] = ["Mike", "Victoria"];
+                const target = exercise.setPlan[0];
+
+                await saveWorkoutSession({
+                  ...session,
+                  exerciseOrder: order,
+                  firstPerson: "Mike",
+                  currentPersonIndex: 0,
+                  currentSet: 1,
+                  currentReps: target.reps,
+                  currentWeight: exercise.defaultWeight["Mike"] + target.weightOffset,
+                });
+              }}
             >
               Mike
             </button>
@@ -336,7 +352,7 @@ function App() {
   return (
     <main className="app">
       <section className="card">
-        <WorkoutProgress />
+        <WorkoutProgress exerciseIndex={session.exerciseIndex} />
         <h1>{exercise.name}</h1>
         <p className="subtitle">
           {currentPerson} — Set {session.currentSet} of {exercise.sets}
@@ -344,22 +360,43 @@ function App() {
 
         <div className="stepper">
           <span>Reps</span>
-          <button onClick={() => setSession({ ...session, currentReps: Math.max(0, session.currentReps - 1) })}>
+          <button
+            onClick={async () => {
+              await saveWorkoutSession({
+                ...session,
+                currentReps: Math.max(0, session.currentReps - 1),
+              });
+            }}>
             −
           </button>
           <strong>{session.currentReps}</strong>
-          <button onClick={() => setSession({ ...session, currentReps: session.currentReps + 1 })}>+</button>
+          <button onClick={async () => {
+            await saveWorkoutSession({
+              ...session,
+              currentReps: session.currentReps + 1,
+            });
+          }}>+</button>
         </div>
 
         <div className="stepper">
           <span>Weight</span>
           <button
-            onClick={() => setSession({ ...session, currentWeight: Math.max(0, session.currentWeight - 5) })}
+            onClick={async () => {
+              await saveWorkoutSession({
+                ...session,
+                currentWeight: Math.max(0, session.currentWeight - 5),
+              });
+            }}
           >
             −
           </button>
           <strong>{session.currentWeight} lbs</strong>
-          <button onClick={() => setSession({ ...session, currentWeight: session.currentWeight + 5 })}>+</button>
+          <button onClick={async () => {
+            await saveWorkoutSession({
+              ...session,
+              currentWeight: session.currentWeight + 5,
+            });
+          }}>+</button>
         </div>
 
         <div className="button-row">
@@ -371,11 +408,11 @@ function App() {
           </button>
         </div>
 
-    <div>
-        <button className="link-button" onClick={resetWorkout}>
-  Cancel Workout
-</button>
-      </div>
+        <div>
+          <button className="link-button" onClick={resetWorkout}>
+            Cancel Workout
+          </button>
+        </div>
       </section>
     </main>
   );

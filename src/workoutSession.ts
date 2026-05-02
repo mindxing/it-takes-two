@@ -1,13 +1,23 @@
-import { doc, setDoc } from "firebase/firestore";
+import { doc, onSnapshot, setDoc } from "firebase/firestore";
 import { db } from "./firebase";
 
-export const createDemoWorkoutSession = async () => {
-  await setDoc(doc(db, "workoutSessions", "demo"), {
-    status: "not_started",
-    currentExerciseIndex: 0,
-    currentSetIndex: 0,
-    currentPerson: "Mike",
-    createdAt: new Date().toISOString(),
+export const demoSessionId = "demo";
+
+export function saveWorkoutSession(session: unknown) {
+  console.log("Writing to Firestore doc:", demoSessionId);
+
+  return setDoc(doc(db, "workoutSessions", demoSessionId), {
+    ...session,
     updatedAt: new Date().toISOString(),
   });
-};
+}
+
+export function listenToWorkoutSession(
+  onSessionChange: (session: unknown) => void
+) {
+  return onSnapshot(doc(db, "workoutSessions", demoSessionId), (snapshot) => {
+    if (snapshot.exists()) {
+      onSessionChange(snapshot.data());
+    }
+  });
+}
