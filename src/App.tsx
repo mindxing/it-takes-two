@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import "./App.css";
 import { people, workout, type Person } from "./workoutData";
 import { listenToWorkoutSession, saveWorkoutSession } from "./workoutSession";
-import { saveCompletedWorkoutSummary, loadCompletedWorkoutSummaries, loadUserProfiles, saveUserProfile, type UserWeights } from "./workoutSession";
+import { saveCompletedWorkoutSummary, loadCompletedWorkoutSummaries, loadUserProfiles, saveUserProfile, calculateExerciseOutcomes, calculateProgressedUserProfilesFromHistory } from "./workoutSession";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 
 type SetStatus = "completed" | "skipped";
@@ -126,7 +126,7 @@ function App() {
   }, [session.complete]);
 
   useEffect(() => {
-    loadUserProfiles().then((profiles) => {
+    loadUserProfiles(defaultUserProfiles).then((profiles) => {
       setUserProfiles({
         Mike: { ...defaultUserProfiles.Mike, ...profiles.Mike },
         Victoria: { ...defaultUserProfiles.Victoria, ...profiles.Victoria },
@@ -214,11 +214,14 @@ function App() {
           0
         );
 
+        const exerciseOutcomes = calculateExerciseOutcomes(newSession.results, workout, userProfiles);
+
         // Save summary (fire-and-forget is fine)
         saveCompletedWorkoutSummary({
           completedAt: new Date().toISOString(),
           totalSets,
           totalWeightLifted,
+          exerciseOutcomes,
         });
       }
     }
@@ -237,6 +240,33 @@ function App() {
             className="primary-button"
             onClick={async () => {
               try {
+                // Calculate weight progression based on history
+                const { updatedProfiles } = calculateProgressedUserProfilesFromHistory(
+                  userProfiles,
+                  workout,
+                  completedWorkouts
+                );
+
+                // If weights changed, update state and save to Firestore
+                let profilesChanged = false;
+                for (const person of ["Mike", "Victoria"] as const) {
+                  for (const exercise of workout) {
+                    const oldWeight = userProfiles[person][exercise.name] || 0;
+                    const newWeight = updatedProfiles[person][exercise.name] || 0;
+                    if (oldWeight !== newWeight) {
+                      profilesChanged = true;
+                      break;
+                    }
+                  }
+                  if (profilesChanged) break;
+                }
+
+                if (profilesChanged) {
+                  setUserProfiles(updatedProfiles);
+                  await saveUserProfile("Mike", updatedProfiles.Mike);
+                  await saveUserProfile("Victoria", updatedProfiles.Victoria);
+                }
+
                 const newSession = {
                   ...session,
                   started: true,
