@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import "./App.css";
 import { people, workout, type Person } from "./workoutData";
 import { listenToWorkoutSession, saveWorkoutSession } from "./workoutSession";
-import { saveCompletedWorkoutSummary, loadCompletedWorkoutSummaries } from "./workoutSession";
+import { saveCompletedWorkoutSummary, loadCompletedWorkoutSummaries, loadUserProfiles, saveUserProfile, type UserWeights } from "./workoutSession";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 
 type SetStatus = "completed" | "skipped";
@@ -21,6 +21,29 @@ type CompletedWorkout = {
   completedAt: string;
   totalSets: number;
   totalWeightLifted: number;
+};
+
+const defaultUserProfiles: Record<Person, Record<string, number>> = {
+  Mike: {
+    "Leg Press": 140,
+    "Chest Press Machine": 80,
+    "Seated Row Machine": 80,
+    "Glute Machine": 70,
+    "Bicep Curl Machine": 30,
+    "Tricep Pushdown": 50,
+    "Abs": 0,
+    "Dumbbell Romanian Deadlift": 35,
+  },
+  Victoria: {
+    "Leg Press": 100,
+    "Chest Press Machine": 50,
+    "Seated Row Machine": 50,
+    "Glute Machine": 50,
+    "Bicep Curl Machine": 20,
+    "Tricep Pushdown": 30,
+    "Abs": 0,
+    "Dumbbell Romanian Deadlift": 20,
+  },
 };
 
 type WorkoutSession = {
@@ -85,6 +108,7 @@ function App() {
   const [session, setSession] = useState<WorkoutSession>(initialSession);
   const [showDetails, setShowDetails] = useState(false);
   const [completedWorkouts, setCompletedWorkouts] = useState<CompletedWorkout[]>([]);
+  const [userProfiles, setUserProfiles] = useState<Record<Person, Record<string, number>>>(defaultUserProfiles);
 
   const exercise = workout[session.exerciseIndex];
   const currentPerson = session.firstPerson ? session.exerciseOrder[session.currentPersonIndex] : null;
@@ -100,6 +124,15 @@ function App() {
   useEffect(() => {
     loadCompletedWorkoutSummaries().then(setCompletedWorkouts);
   }, [session.complete]);
+
+  useEffect(() => {
+    loadUserProfiles().then((profiles) => {
+      setUserProfiles({
+        Mike: { ...defaultUserProfiles.Mike, ...profiles.Mike },
+        Victoria: { ...defaultUserProfiles.Victoria, ...profiles.Victoria },
+      });
+    });
+  }, []);
 
   async function resetWorkout() {
     await saveWorkoutSession(initialSession);
@@ -137,7 +170,7 @@ function App() {
         currentPersonIndex: 1,
         currentReps: target.reps,
         currentWeight:
-          exercise.defaultWeight[nextPerson] + target.weightOffset,
+          (userProfiles[nextPerson][exercise.name] || 0) + target.weightOffset,
       };
     } else if (session.currentSet < exercise.sets) {
       const nextSet = session.currentSet + 1;
@@ -150,7 +183,7 @@ function App() {
         currentSet: nextSet,
         currentReps: target.reps,
         currentWeight:
-          exercise.defaultWeight[nextPerson] + target.weightOffset,
+          (userProfiles[nextPerson][exercise.name] || 0) + target.weightOffset,
       };
     } else {
       // move to next exercise
@@ -395,7 +428,7 @@ function App() {
                   currentPersonIndex: 0,
                   currentSet: 1,
                   currentReps: target.reps,
-                  currentWeight: exercise.defaultWeight["Victoria"] + target.weightOffset,
+                  currentWeight: (userProfiles["Victoria"][exercise.name] || 0) + target.weightOffset,
                 });
               }}
             >
@@ -414,7 +447,7 @@ function App() {
                   currentPersonIndex: 0,
                   currentSet: 1,
                   currentReps: target.reps,
-                  currentWeight: exercise.defaultWeight["Mike"] + target.weightOffset,
+                  currentWeight: (userProfiles["Mike"][exercise.name] || 0) + target.weightOffset,
                 });
               }}
             >

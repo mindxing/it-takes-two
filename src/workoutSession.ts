@@ -1,5 +1,5 @@
 import { db } from "./firebase";
-import { addDoc, collection, getDocs, orderBy, query, doc, onSnapshot, setDoc} from "firebase/firestore";
+import { addDoc, collection, getDocs, orderBy, query, doc, onSnapshot, setDoc, getDoc } from "firebase/firestore";
 
 export const demoSessionId = "demo";
 
@@ -48,4 +48,26 @@ export async function loadCompletedWorkoutSummaries() {
     id: doc.id,
     ...(doc.data() as CompletedWorkoutSummary),
   }));
+}
+
+export type UserWeights = Record<string, number>;
+
+export async function loadUserProfiles(): Promise<Record<string, UserWeights>> {
+  const profiles: Record<string, UserWeights> = {};
+
+  const mikeDoc = await getDoc(doc(db, "userProfiles", "Mike"));
+  if (mikeDoc.exists()) {
+    profiles.Mike = mikeDoc.data().weights || {};
+  }
+
+  const victoriaDoc = await getDoc(doc(db, "userProfiles", "Victoria"));
+  if (victoriaDoc.exists()) {
+    profiles.Victoria = victoriaDoc.data().weights || {};
+  }
+
+  return profiles;
+}
+
+export function saveUserProfile(person: string, weights: UserWeights) {
+  return setDoc(doc(db, "userProfiles", person), { weights });
 }
