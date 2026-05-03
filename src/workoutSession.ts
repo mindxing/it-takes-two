@@ -4,12 +4,17 @@ import { addDoc, collection, getDocs, orderBy, query, doc, onSnapshot, setDoc, g
 export const demoSessionId = "demo";
 
 export function saveWorkoutSession(session: unknown) {
-  console.log("Writing to Firestore doc:", demoSessionId);
+  const now = new Date().toISOString();
+  const prepared = {
+    ...(session as Record<string, unknown>),
+    updatedAt: now,
+  } as Record<string, unknown>;
 
-  return setDoc(doc(db, "workoutSessions", demoSessionId), {
-    ...session,
-    updatedAt: new Date().toISOString(),
-  });
+  if (!prepared.createdAt) {
+    prepared.createdAt = now;
+  }
+
+  return setDoc(doc(db, "workoutSessions", demoSessionId), prepared, { merge: true });
 }
 
 export function listenToWorkoutSession(
@@ -27,6 +32,7 @@ export function saveCompletedWorkoutSummary(summary: {
   totalSets: number;
   totalWeightLifted: number;
   exerciseOutcomes?: Record<string, Record<string, "exact" | "up" | "down" | "neutral">>;
+  results: SetResult[];
 }) {
   return addDoc(collection(db, "completedWorkouts"), summary);
 }
@@ -40,6 +46,7 @@ export type CompletedWorkoutSummary = {
   totalSets: number;
   totalWeightLifted: number;
   exerciseOutcomes?: ExerciseOutcomes;
+  results: SetResult[];
 };
 
 export async function loadCompletedWorkoutSummaries() {
@@ -267,7 +274,7 @@ export function calculateProgressedUserProfilesFromHistory(
 
       // Apply progression rules
       let newWeight = currentWeight;
-      let reason = "no change";
+      let reason: string | null = null;
 
       // Rule 1: Last 3 are all "exact" -> +5
       if (outcomes.length >= 3 && outcomes.slice(-3).every((o) => o === "exact")) {
@@ -283,13 +290,9 @@ export function calculateProgressedUserProfilesFromHistory(
       else if (outcomes.length >= 2 && outcomes.slice(-2).every((o) => o === "down")) {
         newWeight = Math.max(0, currentWeight - 5);
         reason = "last 2 outcomes down";
-      } else if (outcomes.length > 0) {
-        reason = `no progression rule met (outcomes: ${outcomes.join(", ")})`;
-      } else {
-        reason = "no prior outcomes";
       }
 
-      if (newWeight !== currentWeight) {
+      if (newWeight !== currentWeight && reason) {
         updatedProfiles[person][exerciseName] = newWeight;
         reasons.push({
           person,

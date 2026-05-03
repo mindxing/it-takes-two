@@ -21,6 +21,8 @@ type CompletedWorkout = {
   completedAt: string;
   totalSets: number;
   totalWeightLifted: number;
+  exerciseOutcomes?: Record<string, any>;
+  results: SetResult[];
 };
 
 const defaultUserProfiles: Record<Person, Record<string, number>> = {
@@ -57,6 +59,11 @@ type WorkoutSession = {
   currentReps: number;
   currentWeight: number;
   results: SetResult[];
+  status?: "active" | "completed" | "cancelled";
+  createdAt?: string;
+  updatedAt?: string;
+  completedAt?: string;
+  cancelledAt?: string;
 };
 
 type WorkoutProgressProps = {
@@ -106,20 +113,45 @@ const initialSession: WorkoutSession = {
 
 function App() {
   const [session, setSession] = useState<WorkoutSession>(initialSession);
+  const [activeRemoteSession, setActiveRemoteSession] = useState<WorkoutSession | null>(null);
   const [showDetails, setShowDetails] = useState(false);
   const [completedWorkouts, setCompletedWorkouts] = useState<CompletedWorkout[]>([]);
   const [userProfiles, setUserProfiles] = useState<Record<Person, Record<string, number>>>(defaultUserProfiles);
+  const [viewingPast, setViewingPast] = useState(false);
+  const [pastSession, setPastSession] = useState<WorkoutSession | null>(null);
 
   const exercise = workout[session.exerciseIndex];
   const currentPerson = session.firstPerson ? session.exerciseOrder[session.currentPersonIndex] : null;
 
   useEffect(() => {
     const unsubscribe = listenToWorkoutSession((data) => {
-      setSession(data as WorkoutSession);
+      const incoming = data as WorkoutSession;
+      const isActive = incoming.status === "active" && !incoming.complete;
+      const isStale = isActive && incoming.updatedAt && new Date(incoming.updatedAt).getTime() < Date.now() - 12 * 60 * 60 * 1000;
+
+      if (incoming.status === "completed" || incoming.complete) {
+        setActiveRemoteSession(null);
+        setSession(incoming); // <-- THIS is the key
+        return;
+      }
+
+      if (isActive && !isStale) {
+        setActiveRemoteSession(incoming);
+        // Also update current session if we're in an active workout
+        if (session.started && !session.complete) {
+          setSession(incoming);
+        }
+      } else {
+        setActiveRemoteSession(null);
+
+        if (incoming.status === "cancelled") {
+          setSession(initialSession);
+        }
+      }
     });
 
     return () => unsubscribe();
-  }, []);
+  }, [session.started, session.complete]);
 
   useEffect(() => {
     loadCompletedWorkoutSummaries().then(setCompletedWorkouts);
@@ -134,8 +166,17 @@ function App() {
     });
   }, []);
 
-  async function resetWorkout() {
-    await saveWorkoutSession(initialSession);
+  async function cancelWorkout() {
+    await saveWorkoutSession({
+      ...session,
+      status: "cancelled",
+      cancelledAt: new Date().toISOString(),
+    });
+    setSession(initialSession);
+  }
+
+  function returnHome() {
+    setSession(initialSession);
   }
 
   async function recordSet(status: SetStatus) {
@@ -200,6 +241,8 @@ function App() {
         newSession = {
           ...newSession,
           complete: true,
+          status: "completed",
+          completedAt: new Date().toISOString(),
         };
 
         // Calculate summary BEFORE saving
@@ -222,11 +265,13 @@ function App() {
           totalSets,
           totalWeightLifted,
           exerciseOutcomes,
+          results: newSession.results,
         });
       }
     }
 
     await saveWorkoutSession(newSession);
+    setSession(newSession);
   }
 
   if (!session.started) {
@@ -267,30 +312,57 @@ function App() {
                   await saveUserProfile("Victoria", updatedProfiles.Victoria);
                 }
 
+                if (activeRemoteSession) {
+                  setSession(activeRemoteSession);
+                  return;
+                }
+
                 const newSession = {
                   ...session,
                   started: true,
+                  status: "active" as const,
                 };
 
                 console.log("Saving session:", newSession);
                 await saveWorkoutSession(newSession);
+                setSession(newSession);
                 console.log("Session saved");
               } catch (error) {
                 console.error("Failed to save session:", error);
               }
             }}
           >
-            Start Workout
+            {activeRemoteSession ? "Join Workout" : "Start Workout"}
           </button>
+
+          {completedWorkouts.length > 0 && (
+            <button
+              className="link-button"
+              onClick={() => {
+                const latest = completedWorkouts.sort((a, b) => new Date(b.completedAt).getTime() - new Date(a.completedAt).getTime())[0];
+                setPastSession({
+                  ...initialSession,
+                  complete: true,
+                  status: "completed",
+                  completedAt: latest.completedAt,
+                  results: latest.results,
+                });
+                setViewingPast(true);
+              }}
+            >
+              View Latest Workout Results
+            </button>
+          )}
 
         </section>
       </main>
     );
   }
 
-  if (session.complete) {
+  if (session.complete || viewingPast) {
+    const currentSession = viewingPast && pastSession ? pastSession : session;
 
-    const completedResults = session.results.filter(
+    const completedResults = currentSession.results.filter(
       (r) => r.status === "completed"
     );
 
@@ -305,7 +377,7 @@ function App() {
       .filter((exercise) => exercise.name !== "Warm-up")
       .map((exercise) => ({
         name: exercise.name,
-        results: session.results.filter((r) => r.exerciseName === exercise.name),
+        results: currentSession.results.filter((r) => r.exerciseName === exercise.name),
       }))
       .filter((exercise) => exercise.results.length > 0);
 
@@ -384,7 +456,14 @@ function App() {
 
           <button
             className="primary-button"
-            onClick={resetWorkout}
+            onClick={() => {
+              if (viewingPast) {
+                setViewingPast(false);
+                setPastSession(null);
+              } else {
+                returnHome();
+              }
+            }}
           >
             Back to Home
           </button>
@@ -549,7 +628,7 @@ function App() {
         </div>
 
         <div>
-          <button className="link-button" onClick={resetWorkout}>
+          <button className="link-button" onClick={cancelWorkout}>
             Cancel Workout
           </button>
         </div>
