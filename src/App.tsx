@@ -99,7 +99,7 @@ function App() {
 
   useEffect(() => {
     loadCompletedWorkoutSummaries().then(setCompletedWorkouts);
-  }, []);
+  }, [session.complete]);
 
   async function resetWorkout() {
     await saveWorkoutSession(initialSession);
@@ -488,42 +488,6 @@ function App() {
         <div>
           <button className="link-button" onClick={resetWorkout}>
             Cancel Workout
-          </button>
-
-          <button
-            className="link-button"
-            onClick={async () => {
-              let totalSets = 0;
-              let totalWeightLifted = 0;
-
-              workout
-                .filter((exercise) => exercise.name !== "Warm-up")
-                .forEach((exercise) => {
-                  exercise.setPlan.forEach((target) => {
-                    (["Victoria", "Mike"] as Person[]).forEach((person) => {
-                      const reps = target.reps;
-                      const weight =
-                        exercise.defaultWeight[person] + target.weightOffset;
-
-                      totalSets += 1;
-                      totalWeightLifted += reps * weight;
-                    });
-                  });
-                });
-
-              await saveCompletedWorkoutSummary({
-                completedAt: new Date().toISOString(),
-                totalSets,
-                totalWeightLifted,
-              });
-
-              await saveWorkoutSession({
-                ...session,
-                complete: true,
-              });
-            }}
-          >
-            Finish Workout (Test)
           </button>
         </div>
       </section>
