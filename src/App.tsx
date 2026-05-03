@@ -126,18 +126,27 @@ function App() {
   useEffect(() => {
     const unsubscribe = listenToWorkoutSession((data) => {
       const incoming = data as WorkoutSession;
+
       const isActive = incoming.status === "active" && !incoming.complete;
-      const isStale = isActive && incoming.updatedAt && new Date(incoming.updatedAt).getTime() < Date.now() - 12 * 60 * 60 * 1000;
+      const isStale =
+        isActive &&
+        incoming.updatedAt &&
+        new Date(incoming.updatedAt).getTime() <
+        Date.now() - 12 * 60 * 60 * 1000;
 
       if (incoming.status === "completed" || incoming.complete) {
         setActiveRemoteSession(null);
-        setSession(incoming); // <-- THIS is the key
+
+        if (session.started && !viewingPast) {
+          setSession(incoming);
+        }
+
         return;
       }
 
       if (isActive && !isStale) {
         setActiveRemoteSession(incoming);
-        // Also update current session if we're in an active workout
+
         if (session.started && !session.complete) {
           setSession(incoming);
         }
@@ -151,7 +160,7 @@ function App() {
     });
 
     return () => unsubscribe();
-  }, [session.started, session.complete]);
+  }, [session.started, session.complete, viewingPast]);
 
   useEffect(() => {
     loadCompletedWorkoutSummaries().then(setCompletedWorkouts);
@@ -274,91 +283,6 @@ function App() {
     setSession(newSession);
   }
 
-  if (!session.started) {
-    return (
-      <main className="app">
-        <section className="card">
-          <h1>It Takes Two</h1>
-          <p className="subtitle">Mike & Victoria's workout tracker</p>
-
-          <button
-            className="primary-button"
-            onClick={async () => {
-              try {
-                // Calculate weight progression based on history
-                const { updatedProfiles } = calculateProgressedUserProfilesFromHistory(
-                  userProfiles,
-                  workout,
-                  completedWorkouts
-                );
-
-                // If weights changed, update state and save to Firestore
-                let profilesChanged = false;
-                for (const person of ["Mike", "Victoria"] as const) {
-                  for (const exercise of workout) {
-                    const oldWeight = userProfiles[person][exercise.name] || 0;
-                    const newWeight = updatedProfiles[person][exercise.name] || 0;
-                    if (oldWeight !== newWeight) {
-                      profilesChanged = true;
-                      break;
-                    }
-                  }
-                  if (profilesChanged) break;
-                }
-
-                if (profilesChanged) {
-                  setUserProfiles(updatedProfiles);
-                  await saveUserProfile("Mike", updatedProfiles.Mike);
-                  await saveUserProfile("Victoria", updatedProfiles.Victoria);
-                }
-
-                if (activeRemoteSession) {
-                  setSession(activeRemoteSession);
-                  return;
-                }
-
-                const newSession = {
-                  ...session,
-                  started: true,
-                  status: "active" as const,
-                };
-
-                console.log("Saving session:", newSession);
-                await saveWorkoutSession(newSession);
-                setSession(newSession);
-                console.log("Session saved");
-              } catch (error) {
-                console.error("Failed to save session:", error);
-              }
-            }}
-          >
-            {activeRemoteSession ? "Join Workout" : "Start Workout"}
-          </button>
-
-          {completedWorkouts.length > 0 && (
-            <button
-              className="link-button"
-              onClick={() => {
-                const latest = completedWorkouts.sort((a, b) => new Date(b.completedAt).getTime() - new Date(a.completedAt).getTime())[0];
-                setPastSession({
-                  ...initialSession,
-                  complete: true,
-                  status: "completed",
-                  completedAt: latest.completedAt,
-                  results: latest.results,
-                });
-                setViewingPast(true);
-              }}
-            >
-              View Latest Workout Results
-            </button>
-          )}
-
-        </section>
-      </main>
-    );
-  }
-
   if (session.complete || viewingPast) {
     const currentSession = viewingPast && pastSession ? pastSession : session;
 
@@ -384,8 +308,8 @@ function App() {
     return (
       <main className="app">
         <section className="card summary-card">
-          <h1>Workout Complete 🎉</h1>
-          <p className="subtitle">Nice work, both of you.</p>
+          <h1>{viewingPast ? "Workout Results" : "Workout Complete 🎉"}</h1>
+          <p className="subtitle">{viewingPast ? "Past workout summary" : "Nice work, both of you."}</p>
 
           <div className="workout-detail">
             <p>
@@ -472,7 +396,92 @@ function App() {
     );
   }
 
-  if (session.exerciseIndex === 0) {
+  if (!session.started) {
+    return (
+      <main className="app">
+        <section className="card">
+          <h1>It Takes Two</h1>
+          <p className="subtitle">Mike & Victoria's workout tracker</p>
+
+          <button
+            className="primary-button"
+            onClick={async () => {
+              try {
+                // Calculate weight progression based on history
+                const { updatedProfiles } = calculateProgressedUserProfilesFromHistory(
+                  userProfiles,
+                  workout,
+                  completedWorkouts
+                );
+
+                // If weights changed, update state and save to Firestore
+                let profilesChanged = false;
+                for (const person of ["Mike", "Victoria"] as const) {
+                  for (const exercise of workout) {
+                    const oldWeight = userProfiles[person][exercise.name] || 0;
+                    const newWeight = updatedProfiles[person][exercise.name] || 0;
+                    if (oldWeight !== newWeight) {
+                      profilesChanged = true;
+                      break;
+                    }
+                  }
+                  if (profilesChanged) break;
+                }
+
+                if (profilesChanged) {
+                  setUserProfiles(updatedProfiles);
+                  await saveUserProfile("Mike", updatedProfiles.Mike);
+                  await saveUserProfile("Victoria", updatedProfiles.Victoria);
+                }
+
+                if (activeRemoteSession) {
+                  setSession(activeRemoteSession);
+                  return;
+                }
+
+                const newSession = {
+                  ...session,
+                  started: true,
+                  status: "active" as const,
+                };
+
+                console.log("Saving session:", newSession);
+                await saveWorkoutSession(newSession);
+                setSession(newSession);
+                console.log("Session saved");
+              } catch (error) {
+                console.error("Failed to save session:", error);
+              }
+            }}
+          >
+            {activeRemoteSession ? "Join Workout" : "Start Workout"}
+          </button>
+
+          {completedWorkouts.length > 0 && (
+            <button
+              className="link-button"
+              onClick={() => {
+                const latest = completedWorkouts.sort((a, b) => new Date(b.completedAt).getTime() - new Date(a.completedAt).getTime())[0];
+                setPastSession({
+                  ...initialSession,
+                  complete: true,
+                  status: "completed",
+                  completedAt: latest.completedAt,
+                  results: latest.results,
+                });
+                setViewingPast(true);
+              }}
+            >
+              View Latest Workout Results
+            </button>
+          )}
+
+        </section>
+      </main>
+    );
+  }
+
+  if (session.started && session.exerciseIndex === 0) {
     return (
       <main className="app">
         <section className="card">
@@ -501,6 +510,7 @@ function App() {
               };
 
               await saveWorkoutSession(newSession);
+              setSession(newSession);
             }}
           >
             Done with Warm-up
@@ -510,7 +520,7 @@ function App() {
     );
   }
 
-  if (!session.firstPerson) {
+  if (session.started && !session.firstPerson && session.exerciseIndex > 0) {
     return (
       <main className="app">
         <section className="card">
@@ -530,7 +540,7 @@ function App() {
                 const order: Person[] = ["Victoria", "Mike"];
                 const target = exercise.setPlan[0];
 
-                await saveWorkoutSession({
+                const newSession = {
                   ...session,
                   exerciseOrder: order,
                   firstPerson: "Victoria",
@@ -538,7 +548,10 @@ function App() {
                   currentSet: 1,
                   currentReps: target.reps,
                   currentWeight: (userProfiles["Victoria"][exercise.name] || 0) + target.weightOffset,
-                });
+                };
+
+                await saveWorkoutSession(newSession);
+                setSession(newSession);
               }}
             >
               Victoria
@@ -549,7 +562,7 @@ function App() {
                 const order: Person[] = ["Mike", "Victoria"];
                 const target = exercise.setPlan[0];
 
-                await saveWorkoutSession({
+                const newSession = {
                   ...session,
                   exerciseOrder: order,
                   firstPerson: "Mike",
@@ -557,7 +570,10 @@ function App() {
                   currentSet: 1,
                   currentReps: target.reps,
                   currentWeight: (userProfiles["Mike"][exercise.name] || 0) + target.weightOffset,
-                });
+                };
+
+                await saveWorkoutSession(newSession);
+                setSession(newSession);
               }}
             >
               Mike
