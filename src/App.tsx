@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import "./App.css";
 import { people, workout, type Person } from "./workoutData";
 import { listenToWorkoutSession, saveWorkoutSession } from "./workoutSession";
+import { saveCompletedWorkoutSummary, loadCompletedWorkoutSummaries } from "./workoutSession";
+import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 
 type SetStatus = "completed" | "skipped";
 
@@ -12,6 +14,13 @@ type SetResult = {
   reps: number;
   weight: number;
   status: SetStatus;
+};
+
+type CompletedWorkout = {
+  id: string;
+  completedAt: string;
+  totalSets: number;
+  totalWeightLifted: number;
 };
 
 type WorkoutSession = {
@@ -74,6 +83,8 @@ const initialSession: WorkoutSession = {
 
 function App() {
   const [session, setSession] = useState<WorkoutSession>(initialSession);
+  const [showDetails, setShowDetails] = useState(false);
+  const [completedWorkouts, setCompletedWorkouts] = useState<CompletedWorkout[]>([]);
 
   const exercise = workout[session.exerciseIndex];
   const currentPerson = session.firstPerson ? session.exerciseOrder[session.currentPersonIndex] : null;
@@ -86,8 +97,12 @@ function App() {
     return () => unsubscribe();
   }, []);
 
-  function resetWorkout() {
-    setSession(initialSession);
+  useEffect(() => {
+    loadCompletedWorkoutSummaries().then(setCompletedWorkouts);
+  }, []);
+
+  async function resetWorkout() {
+    await saveWorkoutSession(initialSession);
   }
 
   async function recordSet(status: SetStatus) {
@@ -148,10 +163,30 @@ function App() {
           currentSet: 1,
         };
       } else {
+
         newSession = {
           ...newSession,
           complete: true,
         };
+
+        // Calculate summary BEFORE saving
+        const completedResults = newSession.results.filter(
+          (r) => r.status === "completed"
+        );
+
+        const totalSets = completedResults.length;
+
+        const totalWeightLifted = completedResults.reduce(
+          (sum, r) => sum + r.weight * r.reps,
+          0
+        );
+
+        // Save summary (fire-and-forget is fine)
+        saveCompletedWorkoutSummary({
+          completedAt: new Date().toISOString(),
+          totalSets,
+          totalWeightLifted,
+        });
       }
     }
 
@@ -191,8 +226,17 @@ function App() {
   }
 
   if (session.complete) {
-    const completedSets = session.results.filter((r) => r.status === "completed").length;
-    const skippedSets = session.results.filter((r) => r.status === "skipped").length;
+
+    const completedResults = session.results.filter(
+      (r) => r.status === "completed"
+    );
+
+    const totalSets = completedResults.length;
+
+    const totalWeightLifted = completedResults.reduce(
+      (sum, r) => sum + r.weight * r.reps,
+      0
+    );
 
     const exercisesWithResults = workout
       .filter((exercise) => exercise.name !== "Warm-up")
@@ -209,38 +253,71 @@ function App() {
           <p className="subtitle">Nice work, both of you.</p>
 
           <div className="workout-detail">
-            <p><strong>Completed sets:</strong> {completedSets}</p>
-            <p><strong>Skipped sets:</strong> {skippedSets}</p>
+            <p>
+              <strong>Total sets:</strong> {totalSets}
+            </p>
+            <p>
+              <strong>Total weight lifted:</strong> {totalWeightLifted} lbs!
+            </p>
           </div>
 
-          <div className="summary-list">
-            {exercisesWithResults.map((exercise) => (
-              <div className="summary-exercise" key={exercise.name}>
-                <h2>{exercise.name}</h2>
+          <p>Debug: {completedWorkouts.length} completed workouts loaded</p>
 
-                {(["Victoria", "Mike"] as Person[]).map((person) => {
-                  const personResults = exercise.results.filter(
-                    (r) => r.person === person
-                  );
+          {completedWorkouts.length > 0 && (
+            <ResponsiveContainer width="100%" height={300}>
+              <LineChart
+                data={completedWorkouts
+                  .sort((a, b) => new Date(a.completedAt).getTime() - new Date(b.completedAt).getTime())
+                  .map((workout) => ({
+                    date: new Date(workout.completedAt).toLocaleDateString(),
+                    totalWeightLifted: workout.totalWeightLifted,
+                  }))}
+              >
+                <XAxis dataKey="date" />
+                <YAxis />
+                <Tooltip />
+                <Line type="monotone" dataKey="totalWeightLifted" stroke="#8884d8" />
+              </LineChart>
+            </ResponsiveContainer>
+          )}
 
-                  if (personResults.length === 0) return null;
+          <button
+            className="link-button"
+            onClick={() => setShowDetails(!showDetails)}
+          >
+            {showDetails ? "Hide details" : "Show details"}
+          </button>
 
-                  return (
-                    <p key={person}>
-                      <strong>{person}:</strong>{" "}
-                      {personResults
-                        .map((r) =>
-                          r.status === "skipped"
-                            ? `Set ${r.setNumber}: skipped`
-                            : `${r.weight}×${r.reps}`
-                        )
-                        .join(", ")}
-                    </p>
-                  );
-                })}
-              </div>
-            ))}
-          </div>
+          {showDetails && (
+            <div className="summary-details">
+              {exercisesWithResults.map((exercise) => (
+                <div className="summary-exercise" key={exercise.name}>
+                  <h2>{exercise.name}</h2>
+
+                  {(["Victoria", "Mike"] as Person[]).map((person) => {
+                    const personResults = exercise.results.filter(
+                      (r) => r.person === person
+                    );
+
+                    if (personResults.length === 0) return null;
+
+                    return (
+                      <p key={person}>
+                        <strong>{person}:</strong>{" "}
+                        {personResults
+                          .map((r) =>
+                            r.status === "skipped"
+                              ? `Set ${r.setNumber}: skipped`
+                              : `${r.weight}×${r.reps}`
+                          )
+                          .join(", ")}
+                      </p>
+                    );
+                  })}
+                </div>
+              ))}
+            </div>
+          )}
 
           <button
             className="primary-button"
@@ -411,6 +488,42 @@ function App() {
         <div>
           <button className="link-button" onClick={resetWorkout}>
             Cancel Workout
+          </button>
+
+          <button
+            className="link-button"
+            onClick={async () => {
+              let totalSets = 0;
+              let totalWeightLifted = 0;
+
+              workout
+                .filter((exercise) => exercise.name !== "Warm-up")
+                .forEach((exercise) => {
+                  exercise.setPlan.forEach((target) => {
+                    (["Victoria", "Mike"] as Person[]).forEach((person) => {
+                      const reps = target.reps;
+                      const weight =
+                        exercise.defaultWeight[person] + target.weightOffset;
+
+                      totalSets += 1;
+                      totalWeightLifted += reps * weight;
+                    });
+                  });
+                });
+
+              await saveCompletedWorkoutSummary({
+                completedAt: new Date().toISOString(),
+                totalSets,
+                totalWeightLifted,
+              });
+
+              await saveWorkoutSession({
+                ...session,
+                complete: true,
+              });
+            }}
+          >
+            Finish Workout (Test)
           </button>
         </div>
       </section>
