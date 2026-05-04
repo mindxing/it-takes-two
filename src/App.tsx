@@ -2,19 +2,10 @@ import { useEffect, useState } from "react";
 import "./App.css";
 import { people, workout, type Person } from "./workoutData";
 import { listenToWorkoutSession, saveWorkoutSession } from "./workoutSession";
-import { saveCompletedWorkoutSummary, loadCompletedWorkoutSummaries, loadUserProfiles, saveUserProfile, calculateExerciseOutcomes, calculateProgressedUserProfilesFromHistory } from "./workoutSession";
+import { saveCompletedWorkoutSummary, loadCompletedWorkoutSummaries, loadUserProfiles, saveUserProfile, calculateExerciseOutcomes, calculateProgressedUserProfilesFromHistory, type SetResult } from "./workoutSession";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 
 type SetStatus = "completed" | "skipped";
-
-type SetResult = {
-  exerciseName: string;
-  person: Person;
-  setNumber: number;
-  reps: number;
-  weight: number;
-  status: SetStatus;
-};
 
 type CompletedWorkout = {
   id: string;
@@ -543,7 +534,7 @@ function App() {
                 const newSession = {
                   ...session,
                   exerciseOrder: order,
-                  firstPerson: "Victoria",
+                  firstPerson: "Victoria" as Person,
                   currentPersonIndex: 0,
                   currentSet: 1,
                   currentReps: target.reps,
@@ -565,7 +556,7 @@ function App() {
                 const newSession = {
                   ...session,
                   exerciseOrder: order,
-                  firstPerson: "Mike",
+                  firstPerson: "Mike" as Person,
                   currentPersonIndex: 0,
                   currentSet: 1,
                   currentReps: target.reps,

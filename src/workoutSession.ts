@@ -1,5 +1,6 @@
 import { db } from "./firebase";
 import { addDoc, collection, getDocs, orderBy, query, doc, onSnapshot, setDoc, getDoc } from "firebase/firestore";
+import type { Person } from "./workoutData";
 
 export const demoSessionId = "demo";
 
@@ -93,7 +94,7 @@ export function saveUserProfile(person: string, weights: UserWeights) {
 
 export type SetResult = {
   exerciseName: string;
-  person: string;
+  person: Person;
   setNumber: number;
   reps: number;
   weight: number;

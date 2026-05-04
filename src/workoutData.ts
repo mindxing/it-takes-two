@@ -35,12 +35,6 @@ const straightSets: SetTarget[] = [
   { reps: 10, weightOffset: 0 },
 ];
 
-const reversePyramid: SetTarget[] = [
-  { reps: 8, weightOffset: 10 },
-  { reps: 10, weightOffset: 0 },
-  { reps: 12, weightOffset: -10 },
-];
-
 export const people: Person[] = ["Victoria", "Mike"];
 
 export const workout: Exercise[] = [
