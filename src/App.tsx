@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import "./App.css";
-import { people, workout, type Person } from "./workoutData";
+import { people, workout, type Person, type Exercise } from "./workoutData";
 import { listenToWorkoutSession, saveWorkoutSession } from "./workoutSession";
 import { saveCompletedWorkoutSummary, loadCompletedWorkoutSummaries, loadUserProfiles, saveUserProfile, calculateExerciseOutcomes, calculateProgressedUserProfilesFromHistory, type SetResult } from "./workoutSession";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
@@ -50,6 +50,7 @@ type WorkoutSession = {
   currentReps: number;
   currentWeight: number;
   results: SetResult[];
+  reorderedWorkout?: Exercise[];
   status?: "active" | "completed" | "cancelled";
   createdAt?: string;
   updatedAt?: string;
@@ -59,9 +60,10 @@ type WorkoutSession = {
 
 type WorkoutProgressProps = {
   exerciseIndex: number;
+  workout: Exercise[];
 };
 
-function WorkoutProgress({ exerciseIndex }: WorkoutProgressProps) {
+function WorkoutProgress({ exerciseIndex, workout }: WorkoutProgressProps) {
   const totalExercises = workout.length;
   const currentNumber = exerciseIndex + 1;
 
@@ -111,7 +113,8 @@ function App() {
   const [viewingPast, setViewingPast] = useState(false);
   const [pastSession, setPastSession] = useState<WorkoutSession | null>(null);
 
-  const exercise = workout[session.exerciseIndex];
+  const effectiveWorkout = session.reorderedWorkout || workout;
+  const exercise = effectiveWorkout[session.exerciseIndex];
   const currentPerson = session.firstPerson ? session.exerciseOrder[session.currentPersonIndex] : null;
 
   useEffect(() => {
@@ -228,7 +231,7 @@ function App() {
       };
     } else {
       // move to next exercise
-      if (session.exerciseIndex < workout.length - 1) {
+      if (session.exerciseIndex < effectiveWorkout.length - 1) {
         newSession = {
           ...newSession,
           exerciseIndex: session.exerciseIndex + 1,
@@ -257,7 +260,7 @@ function App() {
           0
         );
 
-        const exerciseOutcomes = calculateExerciseOutcomes(newSession.results, workout, userProfiles);
+        const exerciseOutcomes = calculateExerciseOutcomes(newSession.results, effectiveWorkout, userProfiles);
 
         // Save summary (fire-and-forget is fine)
         saveCompletedWorkoutSummary({
@@ -288,7 +291,8 @@ function App() {
       0
     );
 
-    const exercisesWithResults = workout
+    const workoutForSummary = currentSession.reorderedWorkout || workout;
+    const exercisesWithResults = workoutForSummary
       .filter((exercise) => exercise.name !== "Warm-up")
       .map((exercise) => ({
         name: exercise.name,
@@ -476,7 +480,7 @@ function App() {
     return (
       <main className="app">
         <section className="card">
-          <WorkoutProgress exerciseIndex={session.exerciseIndex} />
+          <WorkoutProgress exerciseIndex={session.exerciseIndex} workout={effectiveWorkout} />
           <h1>{exercise.name}</h1>
           <p className="subtitle">{exercise.notes}</p>
 
@@ -515,7 +519,7 @@ function App() {
     return (
       <main className="app">
         <section className="card">
-          <WorkoutProgress exerciseIndex={session.exerciseIndex} />
+          <WorkoutProgress exerciseIndex={session.exerciseIndex} workout={effectiveWorkout} />
           <h1>{exercise.name}</h1>
           <p className="subtitle">
             {exercise.sets} sets × {exercise.reps} reps
@@ -570,6 +574,28 @@ function App() {
               Mike
             </button>
           </div>
+
+          <button
+            className="link-button"
+            onClick={async () => {
+              if (session.exerciseIndex >= effectiveWorkout.length - 1) return; // can't postpone last exercise
+
+              const currentWorkout = effectiveWorkout;
+              const newWorkout = [...currentWorkout];
+              const currentExercise = newWorkout.splice(session.exerciseIndex, 1)[0];
+              newWorkout.splice(session.exerciseIndex + 1, 0, currentExercise);
+
+              const newSession = {
+                ...session,
+                reorderedWorkout: newWorkout,
+              };
+
+              await saveWorkoutSession(newSession);
+              setSession(newSession);
+            }}
+          >
+            Postpone this exercise
+          </button>
         </section>
       </main>
     );
@@ -578,7 +604,7 @@ function App() {
   return (
     <main className="app">
       <section className="card">
-        <WorkoutProgress exerciseIndex={session.exerciseIndex} />
+        <WorkoutProgress exerciseIndex={session.exerciseIndex} workout={effectiveWorkout} />
         <h1>{exercise.name}</h1>
         <p className="subtitle">
           {currentPerson} — Set {session.currentSet} of {exercise.sets}
