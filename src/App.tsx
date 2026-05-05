@@ -52,6 +52,7 @@ type WorkoutSession = {
   results: SetResult[];
   reorderedWorkout?: Exercise[];
   warmupStartedAt?: string | null;
+  adjustedBaselines?: Record<string, number>;
   status?: "active" | "completed" | "cancelled";
   createdAt?: string;
   updatedAt?: string;
@@ -109,6 +110,7 @@ const initialSession: WorkoutSession = {
   currentReps: 10,
   currentWeight: 0,
   results: [],
+  adjustedBaselines: {},
 };
 
 function App() {
@@ -239,7 +241,7 @@ function App() {
         currentPersonIndex: 1,
         currentReps: target.reps,
         currentWeight:
-          (userProfiles[nextPerson][exercise.name] || 0) + target.weightOffset,
+          (session.adjustedBaselines?.[exercise.name] || userProfiles[nextPerson][exercise.name] || 0) + target.weightOffset,
       };
     } else if (session.currentSet < exercise.sets) {
       const nextSet = session.currentSet + 1;
@@ -252,7 +254,7 @@ function App() {
         currentSet: nextSet,
         currentReps: target.reps,
         currentWeight:
-          (userProfiles[nextPerson][exercise.name] || 0) + target.weightOffset,
+          (session.adjustedBaselines?.[exercise.name] || userProfiles[nextPerson][exercise.name] || 0) + target.weightOffset,
       };
     } else {
       // move to next exercise
@@ -586,6 +588,7 @@ function App() {
                   currentSet: 1,
                   currentReps: target.reps,
                   currentWeight: (userProfiles["Victoria"][exercise.name] || 0) + target.weightOffset,
+                  adjustedBaselines: { ...session.adjustedBaselines, [exercise.name]: userProfiles["Victoria"][exercise.name] || 0 },
                 };
 
                 await saveWorkoutSession(newSession);
@@ -608,6 +611,7 @@ function App() {
                   currentSet: 1,
                   currentReps: target.reps,
                   currentWeight: (userProfiles["Mike"][exercise.name] || 0) + target.weightOffset,
+                  adjustedBaselines: { ...session.adjustedBaselines, [exercise.name]: userProfiles["Mike"][exercise.name] || 0 },
                 };
 
                 await saveWorkoutSession(newSession);
@@ -677,9 +681,12 @@ function App() {
           <span>Weight</span>
           <button
             onClick={async () => {
+              const newWeight = Math.max(0, session.currentWeight - 5);
+              const target = exercise.setPlan[session.currentSet - 1];
               await saveWorkoutSession({
                 ...session,
-                currentWeight: Math.max(0, session.currentWeight - 5),
+                currentWeight: newWeight,
+                adjustedBaselines: { ...session.adjustedBaselines, [exercise.name]: newWeight - target.weightOffset },
               });
             }}
           >
@@ -687,9 +694,12 @@ function App() {
           </button>
           <strong>{session.currentWeight} lbs</strong>
           <button onClick={async () => {
+            const newWeight = session.currentWeight + 5;
+            const target = exercise.setPlan[session.currentSet - 1];
             await saveWorkoutSession({
               ...session,
-              currentWeight: session.currentWeight + 5,
+              currentWeight: newWeight,
+              adjustedBaselines: { ...session.adjustedBaselines, [exercise.name]: newWeight - target.weightOffset },
             });
           }}>+</button>
         </div>
