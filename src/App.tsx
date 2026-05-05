@@ -20,21 +20,21 @@ type CompletedWorkout = {
 
 const defaultUserProfiles: Record<Person, Record<string, number>> = {
   Mike: {
-    "Leg Press": 140,
-    "Chest Press Machine": 80,
-    "Seated Row Machine": 80,
-    "Glute Machine": 70,
-    "Bicep Curl Machine": 30,
-    "Tricep Pushdown": 50,
+    "Leg Press": 125,
+    "Chest Press Machine": 65,
+    "Seated Row Machine": 55,
+    "Glute Machine": 55,
+    "Bicep Curl Machine": 55,
+    "Tricep Pushdown": 55,
     "Abs": 0,
     "Dumbbell Romanian Deadlift": 35,
   },
   Victoria: {
-    "Leg Press": 100,
-    "Chest Press Machine": 50,
-    "Seated Row Machine": 50,
+    "Leg Press": 95,
+    "Chest Press Machine": 25,
+    "Seated Row Machine": 35,
     "Glute Machine": 50,
-    "Bicep Curl Machine": 20,
+    "Bicep Curl Machine": 10,
     "Tricep Pushdown": 30,
     "Abs": 0,
     "Dumbbell Romanian Deadlift": 20,
@@ -715,7 +715,7 @@ function App() {
           <button
             onClick={async () => {
               const newReps = Math.max(0, session.currentReps - 1);
-              await saveWorkoutSession({
+              const updated = {
                 ...session,
                 currentReps: newReps,
                 adjustedRepBaselines: {
@@ -725,14 +725,16 @@ function App() {
                     [currentPerson!]: newReps,
                   },
                 },
-              });
+              };
+              await saveWorkoutSession(updated);
+              setSession(updated);
             }}>
             −
           </button>
           <strong>{session.currentReps}</strong>
           <button onClick={async () => {
             const newReps = session.currentReps + 1;
-            await saveWorkoutSession({
+            const updated = {
               ...session,
               currentReps: newReps,
               adjustedRepBaselines: {
@@ -742,7 +744,9 @@ function App() {
                   [currentPerson!]: newReps,
                 },
               },
-            });
+            };
+            await saveWorkoutSession(updated);
+            setSession(updated);
           }}>+</button>
         </div>
 
@@ -752,11 +756,13 @@ function App() {
             onClick={async () => {
               const newWeight = Math.max(0, session.currentWeight - 5);
               const target = exercise.setPlan[session.currentSet - 1];
-              await saveWorkoutSession({
+              const updated = {
                 ...session,
                 currentWeight: newWeight,
                 adjustedBaselines: { ...session.adjustedBaselines, [exercise.name]: newWeight - (userStrategies[currentPerson!] === "pyramid" ? target.weightOffset : 0) },
-              });
+              };
+              await saveWorkoutSession(updated);
+              setSession(updated);
             }}
           >
             −
@@ -765,11 +771,13 @@ function App() {
           <button onClick={async () => {
             const newWeight = session.currentWeight + 5;
             const target = exercise.setPlan[session.currentSet - 1];
-            await saveWorkoutSession({
+            const updated = {
               ...session,
               currentWeight: newWeight,
               adjustedBaselines: { ...session.adjustedBaselines, [exercise.name]: newWeight - (userStrategies[currentPerson!] === "pyramid" ? target.weightOffset : 0) },
-            });
+            };
+            await saveWorkoutSession(updated);
+            setSession(updated);
           }}>+</button>
         </div>
 
