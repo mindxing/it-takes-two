@@ -51,6 +51,7 @@ type WorkoutSession = {
   currentWeight: number;
   results: SetResult[];
   reorderedWorkout?: Exercise[];
+  warmupStartedAt?: string | null;
   status?: "active" | "completed" | "cancelled";
   createdAt?: string;
   updatedAt?: string;
@@ -91,6 +92,12 @@ function WorkoutProgress({ exerciseIndex, workout }: WorkoutProgressProps) {
   );
 }
 
+function formatSeconds(seconds: number) {
+  const minutes = Math.floor(seconds / 60);
+  const remainder = seconds % 60;
+  return `${String(minutes).padStart(2, "0")}:${String(remainder).padStart(2, "0")}`;
+}
+
 const initialSession: WorkoutSession = {
   started: false,
   complete: false,
@@ -112,8 +119,10 @@ function App() {
   const [userProfiles, setUserProfiles] = useState<Record<Person, Record<string, number>>>(defaultUserProfiles);
   const [viewingPast, setViewingPast] = useState(false);
   const [pastSession, setPastSession] = useState<WorkoutSession | null>(null);
+  const [warmupSeconds, setWarmupSeconds] = useState(0);
 
   const effectiveWorkout = session.reorderedWorkout || workout;
+  const warmupRunning = !!session.warmupStartedAt && session.exerciseIndex === 0;
   const exercise = effectiveWorkout[session.exerciseIndex];
   const currentPerson = session.firstPerson ? session.exerciseOrder[session.currentPersonIndex] : null;
 
@@ -169,6 +178,22 @@ function App() {
     });
   }, []);
 
+  useEffect(() => {
+    if (!session.warmupStartedAt || session.exerciseIndex !== 0) {
+      setWarmupSeconds(0);
+      return;
+    }
+
+    const startTime = new Date(session.warmupStartedAt).getTime();
+    const updateSeconds = () => {
+      setWarmupSeconds(Math.max(0, Math.floor((Date.now() - startTime) / 1000)));
+    };
+
+    updateSeconds();
+    const intervalId = window.setInterval(updateSeconds, 1000);
+    return () => window.clearInterval(intervalId);
+  }, [session.warmupStartedAt, session.exerciseIndex]);
+
   async function cancelWorkout() {
     await saveWorkoutSession({
       ...session,
@@ -185,7 +210,7 @@ function App() {
   async function recordSet(status: SetStatus) {
     if (!session.firstPerson) return;
 
-    const exercise = workout[session.exerciseIndex];
+    const exercise = effectiveWorkout[session.exerciseIndex];
     const currentPerson = session.exerciseOrder[session.currentPersonIndex];
 
     const newResult = {
@@ -493,11 +518,29 @@ function App() {
             </p>
           </div>
 
+          {warmupRunning && (
+            <div className="warmup-timer">
+              Warmup timer: {formatSeconds(warmupSeconds)}
+            </div>
+          )}
+
           <button
             className="primary-button"
             onClick={async () => {
+              if (!warmupRunning) {
+                const newSession = {
+                  ...session,
+                  warmupStartedAt: new Date().toISOString(),
+                };
+
+                await saveWorkoutSession(newSession);
+                setSession(newSession);
+                return;
+              }
+
               const newSession = {
                 ...session,
+                warmupStartedAt: null,
                 exerciseIndex: session.exerciseIndex + 1,
                 firstPerson: null,
                 currentPersonIndex: 0,
@@ -508,7 +551,7 @@ function App() {
               setSession(newSession);
             }}
           >
-            Done with Warm-up
+            {warmupRunning ? "Complete warmup" : "Start warmup"}
           </button>
         </section>
       </main>
