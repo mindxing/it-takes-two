@@ -9,6 +9,8 @@ type SetStatus = "completed" | "skipped";
 
 type WeightStrategy = "pyramid" | "straight";
 
+const APP_VERSION = "0.5.0";
+
 type CompletedWorkout = {
   id: string;
   completedAt: string;
@@ -463,6 +465,7 @@ function App() {
         <section className="card">
           <h1>It Takes Two</h1>
           <p className="subtitle">Mike & Victoria's workout tracker</p>
+          <p style={{ fontSize: "0.75rem", color: "#999", marginTop: "0.5rem" }}>v{APP_VERSION}</p>
 
           <button
             className="primary-button"
