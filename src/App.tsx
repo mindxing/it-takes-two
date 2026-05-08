@@ -61,7 +61,7 @@ type WorkoutSession = {
   results: SetResult[];
   reorderedWorkout?: Exercise[];
   warmupStartedAt?: string | null;
-  adjustedBaselines?: Record<string, number>;
+  adjustedBaselines?: Record<string, Partial<Record<Person, number>>>;
   adjustedRepBaselines?: Record<string, Partial<Record<Person, number>>>;
   status?: "active" | "completed" | "cancelled";
   createdAt?: string;
@@ -253,12 +253,12 @@ function App() {
       const nextAdjustedRepBaselines =
         userStrategies[nextPerson] === "straight"
           ? {
-              ...session.adjustedRepBaselines,
-              [exercise.name]: {
-                ...(session.adjustedRepBaselines?.[exercise.name] || {}),
-                [nextPerson]: nextReps,
-              },
-            }
+            ...session.adjustedRepBaselines,
+            [exercise.name]: {
+              ...(session.adjustedRepBaselines?.[exercise.name] || {}),
+              [nextPerson]: nextReps,
+            },
+          }
           : session.adjustedRepBaselines;
 
       newSession = {
@@ -266,7 +266,11 @@ function App() {
         currentPersonIndex: 1,
         currentReps: nextReps,
         currentWeight:
-          (session.adjustedBaselines?.[exercise.name] || userProfiles[nextPerson][exercise.name] || 0) + (userStrategies[nextPerson] === "pyramid" ? target.weightOffset : 0),
+          (
+            session.adjustedBaselines?.[exercise.name]?.[nextPerson] ??
+            userProfiles[nextPerson][exercise.name] ??
+            0
+          ) + (userStrategies[nextPerson] === "pyramid" ? target.weightOffset : 0),
         adjustedRepBaselines: nextAdjustedRepBaselines,
       };
     } else if (session.currentSet < exercise.sets) {
@@ -280,12 +284,12 @@ function App() {
       const nextAdjustedRepBaselines =
         userStrategies[nextPerson] === "straight"
           ? {
-              ...session.adjustedRepBaselines,
-              [exercise.name]: {
-                ...(session.adjustedRepBaselines?.[exercise.name] || {}),
-                [nextPerson]: nextReps,
-              },
-            }
+            ...session.adjustedRepBaselines,
+            [exercise.name]: {
+              ...(session.adjustedRepBaselines?.[exercise.name] || {}),
+              [nextPerson]: nextReps,
+            },
+          }
           : session.adjustedRepBaselines;
 
       newSession = {
@@ -294,7 +298,11 @@ function App() {
         currentSet: nextSet,
         currentReps: nextReps,
         currentWeight:
-          (session.adjustedBaselines?.[exercise.name] || userProfiles[nextPerson][exercise.name] || 0) + (userStrategies[nextPerson] === "pyramid" ? target.weightOffset : 0),
+          (
+            session.adjustedBaselines?.[exercise.name]?.[nextPerson] ??
+            userProfiles[nextPerson][exercise.name] ??
+            0
+          ) + (userStrategies[nextPerson] === "pyramid" ? target.weightOffset : 0),
         adjustedRepBaselines: nextAdjustedRepBaselines,
       };
     } else {
@@ -630,7 +638,13 @@ function App() {
                   currentSet: 1,
                   currentReps: target.reps,
                   currentWeight: (userProfiles["Victoria"][exercise.name] || 0) + (userStrategies["Victoria"] === "pyramid" ? target.weightOffset : 0),
-                  adjustedBaselines: { ...session.adjustedBaselines, [exercise.name]: userProfiles["Victoria"][exercise.name] || 0 },
+                  adjustedBaselines: {
+                    ...session.adjustedBaselines,
+                    [exercise.name]: {
+                      ...(session.adjustedBaselines?.[exercise.name] || {}),
+                      Victoria: userProfiles["Victoria"][exercise.name] || 0,
+                    },
+                  },
                   adjustedRepBaselines: {
                     ...session.adjustedRepBaselines,
                     [exercise.name]: {
@@ -660,7 +674,13 @@ function App() {
                   currentSet: 1,
                   currentReps: target.reps,
                   currentWeight: (userProfiles["Mike"][exercise.name] || 0) + (userStrategies["Mike"] === "pyramid" ? target.weightOffset : 0),
-                  adjustedBaselines: { ...session.adjustedBaselines, [exercise.name]: userProfiles["Mike"][exercise.name] || 0 },
+                  adjustedBaselines: {
+                    ...session.adjustedBaselines,
+                    [exercise.name]: {
+                      ...(session.adjustedBaselines?.[exercise.name] || {}),
+                      Mike: userProfiles["Mike"][exercise.name] || 0,
+                    },
+                  },
                   adjustedRepBaselines: {
                     ...session.adjustedRepBaselines,
                     [exercise.name]: {
@@ -680,13 +700,18 @@ function App() {
 
           <button
             className="link-button"
+
             onClick={async () => {
-              if (session.exerciseIndex >= effectiveWorkout.length - 1) return; // can't postpone last exercise
+              if (session.exerciseIndex >= effectiveWorkout.length - 1) return;
 
               const currentWorkout = effectiveWorkout;
               const newWorkout = [...currentWorkout];
+
+              // Remove current exercise
               const currentExercise = newWorkout.splice(session.exerciseIndex, 1)[0];
-              newWorkout.splice(session.exerciseIndex + 1, 0, currentExercise);
+
+              // Push to end
+              newWorkout.push(currentExercise);
 
               const newSession = {
                 ...session,
@@ -757,12 +782,24 @@ function App() {
           <span>Weight</span>
           <button
             onClick={async () => {
+              if (!currentPerson) return;
+
               const newWeight = Math.max(0, session.currentWeight - 5);
               const target = exercise.setPlan[session.currentSet - 1];
+              const adjustedBaseline =
+                newWeight -
+                (userStrategies[currentPerson] === "pyramid" ? target.weightOffset : 0);
+
               const updated = {
                 ...session,
                 currentWeight: newWeight,
-                adjustedBaselines: { ...session.adjustedBaselines, [exercise.name]: newWeight - (userStrategies[currentPerson!] === "pyramid" ? target.weightOffset : 0) },
+                adjustedBaselines: {
+                  ...session.adjustedBaselines,
+                  [exercise.name]: {
+                    ...(session.adjustedBaselines?.[exercise.name] || {}),
+                    [currentPerson]: adjustedBaseline,
+                  },
+                },
               };
               await saveWorkoutSession(updated);
               setSession(updated);
@@ -772,12 +809,24 @@ function App() {
           </button>
           <strong>{session.currentWeight} lbs</strong>
           <button onClick={async () => {
+            if (!currentPerson) return;
+
             const newWeight = session.currentWeight + 5;
             const target = exercise.setPlan[session.currentSet - 1];
+            const adjustedBaseline =
+              newWeight -
+              (userStrategies[currentPerson] === "pyramid" ? target.weightOffset : 0);
+
             const updated = {
               ...session,
               currentWeight: newWeight,
-              adjustedBaselines: { ...session.adjustedBaselines, [exercise.name]: newWeight - (userStrategies[currentPerson!] === "pyramid" ? target.weightOffset : 0) },
+              adjustedBaselines: {
+                ...session.adjustedBaselines,
+                [exercise.name]: {
+                  ...(session.adjustedBaselines?.[exercise.name] || {}),
+                  [currentPerson]: adjustedBaseline,
+                },
+              },
             };
             await saveWorkoutSession(updated);
             setSession(updated);
