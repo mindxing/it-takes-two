@@ -21,6 +21,9 @@
 h1 {
   margin: 0 0 8px;
   font-size: 1.8rem;
+  color: #111827;
+  opacity: 1;
+  font-weight: 700;
 }
 
 .subtitle {
@@ -123,8 +126,10 @@ h1 {
   box-sizing: border-box;
 }
 
-body {
+  body {
   margin: 0;
+  color: #111827;
+  background: #f4f4f5;
 }
 
 @media (max-width: 480px) {
@@ -133,11 +138,17 @@ body {
     align-items: flex-start;
   }
 
-  .card {
-    margin-top: 16px;
-    padding: 24px 18px;
-  }
-
+.card {
+  width: 100%;
+  max-width: 420px;
+  padding: 32px;
+  border-radius: 20px;
+  background: white;
+  color: #111827;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.12);
+  text-align: center;
+}
+ 
   .button-row {
     flex-direction: column;
   }
@@ -177,4 +188,25 @@ body {
 
 .progress-dot.current {
   background: #2563eb;
+}
+
+@media (prefers-color-scheme: dark) {
+  body {
+    color: #111827;
+    background: #f4f4f5;
+  }
+
+  .app {
+    background: #f4f4f5;
+  }
+
+  .card {
+    background: white;
+    color: #111827;
+  }
+
+  h1 {
+    color: #111827;
+    opacity: 1;
+  }
 }
