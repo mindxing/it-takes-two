@@ -336,7 +336,12 @@ function App() {
           0
         );
 
-        const exerciseOutcomes = calculateExerciseOutcomes(newSession.results, effectiveWorkout, userProfiles);
+        const exerciseOutcomes = calculateExerciseOutcomes(
+          newSession.results,
+          effectiveWorkout,
+          userProfiles,
+          userStrategies
+        );
 
         // Save summary (fire-and-forget is fine)
         saveCompletedWorkoutSummary({

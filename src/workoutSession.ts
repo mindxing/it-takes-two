@@ -114,7 +114,8 @@ export type Exercise = {
 export function calculateExerciseOutcomes(
   results: SetResult[],
   workout: Exercise[],
-  userProfiles: Record<string, Record<string, number>>
+  userProfiles: Record<string, Record<string, number>>,
+  userStrategies: Record<Person, "pyramid" | "straight">
 ): ExerciseOutcomes {
   const outcomes: ExerciseOutcomes = {};
 
@@ -129,6 +130,7 @@ export function calculateExerciseOutcomes(
     }
 
     const personResults = groupedResults.get(result.person)!;
+
     if (!personResults.has(result.exerciseName)) {
       personResults.set(result.exerciseName, []);
     }
@@ -143,19 +145,23 @@ export function calculateExerciseOutcomes(
     for (const [exerciseName, exerciseResults] of exercises) {
       // Find the exercise plan
       const exercise = workout.find((e) => e.name === exerciseName);
+
       if (!exercise) {
         outcomes[person][exerciseName] = "neutral";
         continue;
       }
 
       // Check if any set was skipped
-      const hasSkipped = exerciseResults.some((r) => r.status === "skipped");
+      const hasSkipped = exerciseResults.some(
+        (r) => r.status === "skipped"
+      );
+
       if (hasSkipped) {
         outcomes[person][exerciseName] = "down";
         continue;
       }
 
-      // All sets completed, check for modifications
+      // All sets completed
       const completedResults = exerciseResults.filter(
         (r) => r.status === "completed"
       );
@@ -165,12 +171,12 @@ export function calculateExerciseOutcomes(
         continue;
       }
 
-      // Sort by set number to match plan
+      // Sort by set number
       const sortedResults = [...completedResults].sort(
         (a, b) => a.setNumber - b.setNumber
       );
 
-      // Get base weight for this person-exercise combo
+      // Base weight for this person/exercise
       const baseWeight = userProfiles[person]?.[exerciseName] || 0;
 
       let isExact = true;
@@ -186,27 +192,41 @@ export function calculateExerciseOutcomes(
           break;
         }
 
-        const plannedWeight = baseWeight + planned.weightOffset;
+        const strategy = userStrategies[result.person];
 
-        // Compare reps and weight
-        if (result.reps === planned.reps && result.weight === plannedWeight) {
+        const plannedReps =
+          strategy === "straight"
+            ? exercise.setPlan[0].reps
+            : planned.reps;
+
+        const plannedWeight =
+          baseWeight +
+          (strategy === "pyramid"
+            ? planned.weightOffset
+            : 0);
+
+        // Compare actual vs expected
+        if (
+          result.reps === plannedReps &&
+          result.weight === plannedWeight
+        ) {
           // Exact match
           continue;
         } else if (
-          result.reps > planned.reps ||
+          result.reps > plannedReps ||
           result.weight > plannedWeight
         ) {
           hasUp = true;
           isExact = false;
         } else if (
-          result.reps < planned.reps - 1 ||
+          result.reps < plannedReps - 1 ||
           result.weight < plannedWeight - 5
         ) {
-          // More than minor deviation
+          // Significant decrease
           hasDown = true;
           isExact = false;
         } else {
-          // Minor deviation (1 rep or 5 lbs less)
+          // Minor deviation
           isExact = false;
         }
       }
