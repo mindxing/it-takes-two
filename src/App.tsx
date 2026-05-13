@@ -1,15 +1,20 @@
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useRef } from "react";
 import "./App.css";
 import { people, workout, type Person, type Exercise } from "./workoutData";
 import { listenToWorkoutSession, saveWorkoutSession } from "./workoutSession";
 import { saveCompletedWorkoutSummary, loadCompletedWorkoutSummaries, loadUserProfiles, saveUserProfile, calculateExerciseOutcomes, calculateProgressedUserProfilesFromHistory, type SetResult, type ExerciseOutcomes } from "./workoutSession";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 
+declare const __APP_VERSION__: string;
+
 type SetStatus = "completed" | "skipped";
 
 type WeightStrategy = "pyramid" | "straight";
 
-const APP_VERSION = "0.5.0";
+const APP_VERSION = __APP_VERSION__;
+const CLIENT_ID =
+  globalThis.crypto?.randomUUID?.() ??
+  `client-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 
 type CompletedWorkout = {
   id: string;
@@ -68,6 +73,8 @@ type WorkoutSession = {
   updatedAt?: string;
   completedAt?: string;
   cancelledAt?: string;
+  localRevision?: number;
+  lastWriterId?: string;
 };
 
 type WorkoutProgressProps = {
@@ -132,21 +139,120 @@ function App() {
   const [userProfiles, setUserProfiles] = useState<Record<Person, Record<string, number>>>(defaultUserProfiles);
   const [viewingPast, setViewingPast] = useState(false);
   const [pastSession, setPastSession] = useState<WorkoutSession | null>(null);
-  const [timerTick, setTimerTick] = useState(0);
-  const warmupSeconds = useMemo(() => {
-    if (!session.warmupStartedAt || session.exerciseIndex !== 0) return 0;
-    // eslint-disable-next-line react-hooks/purity
-    return Math.max(0, Math.floor((Date.now() - new Date(session.warmupStartedAt).getTime()) / 1000));
-  }, [session.warmupStartedAt, session.exerciseIndex, timerTick]);
+  const [warmupSeconds, setWarmupSeconds] = useState(0);
+  const [savingCount, setSavingCount] = useState(0);
+  const sessionRef = useRef(session);
+  const viewingPastRef = useRef(viewingPast);
+  const latestLocalRevisionRef = useRef(0);
+  const pendingStepperSaveRef = useRef<number | null>(null);
+  const pendingStepperSessionRef = useRef<WorkoutSession | null>(null);
+  const clientIdRef = useRef(CLIENT_ID);
+
+  const isSaving = savingCount > 0;
+
+  useEffect(() => {
+    sessionRef.current = session;
+  }, [session]);
+
+  useEffect(() => {
+    viewingPastRef.current = viewingPast;
+  }, [viewingPast]);
 
   const effectiveWorkout = session.reorderedWorkout || workout;
   const warmupRunning = !!session.warmupStartedAt && session.exerciseIndex === 0;
   const exercise = effectiveWorkout[session.exerciseIndex];
   const currentPerson = session.firstPerson ? session.exerciseOrder[session.currentPersonIndex] : null;
 
+  function setLocalSession(nextSession: WorkoutSession) {
+    sessionRef.current = nextSession;
+    setSession(nextSession);
+  }
+
+  function prepareLocalSession(nextSession: WorkoutSession) {
+    const nextRevision =
+      Math.max(nextSession.localRevision ?? 0, latestLocalRevisionRef.current) + 1;
+
+    latestLocalRevisionRef.current = nextRevision;
+
+    return {
+      ...nextSession,
+      localRevision: nextRevision,
+      lastWriterId: clientIdRef.current,
+    };
+  }
+
+  function clearPendingStepperSave() {
+    if (pendingStepperSaveRef.current !== null) {
+      window.clearTimeout(pendingStepperSaveRef.current);
+      pendingStepperSaveRef.current = null;
+    }
+
+    pendingStepperSessionRef.current = null;
+  }
+
+  async function savePreparedSession(nextSession: WorkoutSession) {
+    setSavingCount((count) => count + 1);
+
+    try {
+      await saveWorkoutSession(nextSession);
+    } finally {
+      setSavingCount((count) => Math.max(0, count - 1));
+    }
+  }
+
+  async function commitSession(nextSession: WorkoutSession) {
+    clearPendingStepperSave();
+
+    const prepared = prepareLocalSession(nextSession);
+    setLocalSession(prepared);
+    await savePreparedSession(prepared);
+
+    return prepared;
+  }
+
+  function queueStepperSave(nextSession: WorkoutSession) {
+    pendingStepperSessionRef.current = nextSession;
+
+    if (pendingStepperSaveRef.current !== null) {
+      window.clearTimeout(pendingStepperSaveRef.current);
+    }
+
+    pendingStepperSaveRef.current = window.setTimeout(() => {
+      const sessionToSave = pendingStepperSessionRef.current;
+      pendingStepperSaveRef.current = null;
+      pendingStepperSessionRef.current = null;
+
+      if (!sessionToSave) return;
+
+      savePreparedSession(sessionToSave).catch((error) => {
+        console.error("Failed to save stepper update:", error);
+      });
+    }, 450);
+  }
+
+  function updateStepperSession(update: (current: WorkoutSession) => WorkoutSession) {
+    const prepared = prepareLocalSession(update(sessionRef.current));
+    setLocalSession(prepared);
+    queueStepperSave(prepared);
+  }
+
+  useEffect(() => {
+    return () => clearPendingStepperSave();
+  }, []);
+
   useEffect(() => {
     const unsubscribe = listenToWorkoutSession((data) => {
       const incoming = data as WorkoutSession;
+      const incomingRevision = incoming.localRevision ?? 0;
+
+      if (incomingRevision < latestLocalRevisionRef.current) {
+        return;
+      }
+
+      latestLocalRevisionRef.current = Math.max(
+        latestLocalRevisionRef.current,
+        incomingRevision
+      );
 
       const isActive = incoming.status === "active" && !incoming.complete;
       const isStale =
@@ -158,8 +264,8 @@ function App() {
       if (incoming.status === "completed" || incoming.complete) {
         setActiveRemoteSession(null);
 
-        if (session.started && !viewingPast) {
-          setSession(incoming);
+        if (sessionRef.current.started && !viewingPastRef.current) {
+          setLocalSession(incoming);
         }
 
         return;
@@ -168,20 +274,20 @@ function App() {
       if (isActive && !isStale) {
         setActiveRemoteSession(incoming);
 
-        if (session.started && !session.complete) {
-          setSession(incoming);
+        if (sessionRef.current.started && !sessionRef.current.complete) {
+          setLocalSession(incoming);
         }
       } else {
         setActiveRemoteSession(null);
 
         if (incoming.status === "cancelled") {
-          setSession(initialSession);
+          setLocalSession(initialSession);
         }
       }
     });
 
     return () => unsubscribe();
-  }, [session.started, session.complete, viewingPast]);
+  }, []);
 
   useEffect(() => {
     loadCompletedWorkoutSummaries().then(setCompletedWorkouts);
@@ -201,26 +307,40 @@ function App() {
       return;
     }
 
+    const updateWarmupSeconds = () => {
+      setWarmupSeconds(
+        Math.max(0, Math.floor((Date.now() - new Date(session.warmupStartedAt!).getTime()) / 1000))
+      );
+    };
+
+    updateWarmupSeconds();
+
     const intervalId = window.setInterval(() => {
-      setTimerTick(t => t + 1);
+      updateWarmupSeconds();
     }, 1000);
     return () => window.clearInterval(intervalId);
   }, [session.warmupStartedAt, session.exerciseIndex]);
 
   async function cancelWorkout() {
-    await saveWorkoutSession({
-      ...session,
+    if (isSaving) return;
+
+    await commitSession({
+      ...sessionRef.current,
       status: "cancelled",
       cancelledAt: new Date().toISOString(),
     });
-    setSession(initialSession);
+    setLocalSession(initialSession);
   }
 
   function returnHome() {
-    setSession(initialSession);
+    setLocalSession(initialSession);
   }
 
   async function recordSet(status: SetStatus) {
+    if (isSaving) return;
+
+    const session = sessionRef.current;
+
     if (!session.firstPerson) return;
 
     const exercise = effectiveWorkout[session.exerciseIndex];
@@ -354,8 +474,7 @@ function App() {
       }
     }
 
-    await saveWorkoutSession(newSession);
-    setSession(newSession);
+    await commitSession(newSession);
   }
 
   if (session.complete || viewingPast) {
@@ -482,7 +601,10 @@ function App() {
 
           <button
             className="primary-button"
+            disabled={isSaving}
             onClick={async () => {
+              if (isSaving) return;
+
               try {
                 // Calculate weight progression based on history
                 const { updatedProfiles } = calculateProgressedUserProfilesFromHistory(
@@ -512,20 +634,17 @@ function App() {
                 }
 
                 if (activeRemoteSession) {
-                  setSession(activeRemoteSession);
+                  setLocalSession(activeRemoteSession);
                   return;
                 }
 
                 const newSession = {
-                  ...session,
+                  ...sessionRef.current,
                   started: true,
                   status: "active" as const,
                 };
 
-                console.log("Saving session:", newSession);
-                await saveWorkoutSession(newSession);
-                setSession(newSession);
-                console.log("Session saved");
+                await commitSession(newSession);
               } catch (error) {
                 console.error("Failed to save session:", error);
               }
@@ -583,20 +702,22 @@ function App() {
 
           <button
             className="primary-button"
+            disabled={isSaving}
             onClick={async () => {
+              if (isSaving) return;
+
               if (!warmupRunning) {
                 const newSession = {
-                  ...session,
+                  ...sessionRef.current,
                   warmupStartedAt: new Date().toISOString(),
                 };
 
-                await saveWorkoutSession(newSession);
-                setSession(newSession);
+                await commitSession(newSession);
                 return;
               }
 
               const newSession = {
-                ...session,
+                ...sessionRef.current,
                 warmupStartedAt: null,
                 exerciseIndex: session.exerciseIndex + 1,
                 firstPerson: null,
@@ -604,8 +725,7 @@ function App() {
                 currentSet: 1,
               };
 
-              await saveWorkoutSession(newSession);
-              setSession(newSession);
+              await commitSession(newSession);
             }}
           >
             {warmupRunning ? "Complete warmup" : "Start warmup"}
@@ -631,12 +751,15 @@ function App() {
 
             <button
               className="primary-button"
+              disabled={isSaving}
               onClick={async () => {
+                if (isSaving) return;
+
                 const order: Person[] = ["Victoria", "Mike"];
                 const target = exercise.setPlan[0];
 
                 const newSession = {
-                  ...session,
+                  ...sessionRef.current,
                   exerciseOrder: order,
                   firstPerson: "Victoria" as Person,
                   currentPersonIndex: 0,
@@ -659,20 +782,22 @@ function App() {
                   },
                 };
 
-                await saveWorkoutSession(newSession);
-                setSession(newSession);
+                await commitSession(newSession);
               }}
             >
               Victoria
             </button>
             <button
               className="primary-button"
+              disabled={isSaving}
               onClick={async () => {
+                if (isSaving) return;
+
                 const order: Person[] = ["Mike", "Victoria"];
                 const target = exercise.setPlan[0];
 
                 const newSession = {
-                  ...session,
+                  ...sessionRef.current,
                   exerciseOrder: order,
                   firstPerson: "Mike" as Person,
                   currentPersonIndex: 0,
@@ -695,8 +820,7 @@ function App() {
                   },
                 };
 
-                await saveWorkoutSession(newSession);
-                setSession(newSession);
+                await commitSession(newSession);
               }}
             >
               Mike
@@ -705,8 +829,11 @@ function App() {
 
           <button
             className="link-button"
+            disabled={isSaving}
 
             onClick={async () => {
+              if (isSaving) return;
+
               if (session.exerciseIndex >= effectiveWorkout.length - 1) return;
 
               const currentWorkout = effectiveWorkout;
@@ -719,12 +846,11 @@ function App() {
               newWorkout.push(currentExercise);
 
               const newSession = {
-                ...session,
+                ...sessionRef.current,
                 reorderedWorkout: newWorkout,
               };
 
-              await saveWorkoutSession(newSession);
-              setSession(newSession);
+              await commitSession(newSession);
             }}
           >
             Postpone this exercise
@@ -746,109 +872,148 @@ function App() {
         <div className="stepper">
           <span>Reps</span>
           <button
-            onClick={async () => {
-              const newReps = Math.max(0, session.currentReps - 1);
-              const updated = {
-                ...session,
-                currentReps: newReps,
-                adjustedRepBaselines: {
-                  ...session.adjustedRepBaselines,
-                  [exercise.name]: {
-                    ...(session.adjustedRepBaselines?.[exercise.name] || {}),
-                    [currentPerson!]: newReps,
+            onClick={() => {
+              updateStepperSession((currentSession) => {
+                const workoutForSession = currentSession.reorderedWorkout || workout;
+                const currentExercise = workoutForSession[currentSession.exerciseIndex];
+                const currentSetPerson = currentSession.firstPerson
+                  ? currentSession.exerciseOrder[currentSession.currentPersonIndex]
+                  : null;
+
+                if (!currentSetPerson) return currentSession;
+
+                const newReps = Math.max(0, currentSession.currentReps - 1);
+
+                return {
+                  ...currentSession,
+                  currentReps: newReps,
+                  adjustedRepBaselines: {
+                    ...currentSession.adjustedRepBaselines,
+                    [currentExercise.name]: {
+                      ...(currentSession.adjustedRepBaselines?.[currentExercise.name] || {}),
+                      [currentSetPerson]: newReps,
+                    },
                   },
-                },
-              };
-              await saveWorkoutSession(updated);
-              setSession(updated);
-            }}>
-            −
+                };
+              });
+            }}
+          >
+            -
           </button>
           <strong>{session.currentReps}</strong>
-          <button onClick={async () => {
-            const newReps = session.currentReps + 1;
-            const updated = {
-              ...session,
-              currentReps: newReps,
-              adjustedRepBaselines: {
-                ...session.adjustedRepBaselines,
-                [exercise.name]: {
-                  ...(session.adjustedRepBaselines?.[exercise.name] || {}),
-                  [currentPerson!]: newReps,
-                },
-              },
-            };
-            await saveWorkoutSession(updated);
-            setSession(updated);
-          }}>+</button>
+          <button
+            onClick={() => {
+              updateStepperSession((currentSession) => {
+                const workoutForSession = currentSession.reorderedWorkout || workout;
+                const currentExercise = workoutForSession[currentSession.exerciseIndex];
+                const currentSetPerson = currentSession.firstPerson
+                  ? currentSession.exerciseOrder[currentSession.currentPersonIndex]
+                  : null;
+
+                if (!currentSetPerson) return currentSession;
+
+                const newReps = currentSession.currentReps + 1;
+
+                return {
+                  ...currentSession,
+                  currentReps: newReps,
+                  adjustedRepBaselines: {
+                    ...currentSession.adjustedRepBaselines,
+                    [currentExercise.name]: {
+                      ...(currentSession.adjustedRepBaselines?.[currentExercise.name] || {}),
+                      [currentSetPerson]: newReps,
+                    },
+                  },
+                };
+              });
+            }}
+          >
+            +
+          </button>
         </div>
 
         <div className="stepper">
           <span>Weight</span>
           <button
-            onClick={async () => {
-              if (!currentPerson) return;
+            onClick={() => {
+              updateStepperSession((currentSession) => {
+                const workoutForSession = currentSession.reorderedWorkout || workout;
+                const currentExercise = workoutForSession[currentSession.exerciseIndex];
+                const currentSetPerson = currentSession.firstPerson
+                  ? currentSession.exerciseOrder[currentSession.currentPersonIndex]
+                  : null;
 
-              const newWeight = Math.max(0, session.currentWeight - 5);
-              const target = exercise.setPlan[session.currentSet - 1];
-              const adjustedBaseline =
-                newWeight -
-                (userStrategies[currentPerson] === "pyramid" ? target.weightOffset : 0);
+                if (!currentSetPerson) return currentSession;
 
-              const updated = {
-                ...session,
-                currentWeight: newWeight,
-                adjustedBaselines: {
-                  ...session.adjustedBaselines,
-                  [exercise.name]: {
-                    ...(session.adjustedBaselines?.[exercise.name] || {}),
-                    [currentPerson]: adjustedBaseline,
+                const newWeight = Math.max(0, currentSession.currentWeight - 5);
+                const target = currentExercise.setPlan[currentSession.currentSet - 1];
+                const adjustedBaseline =
+                  newWeight -
+                  (userStrategies[currentSetPerson] === "pyramid" ? target.weightOffset : 0);
+
+                return {
+                  ...currentSession,
+                  currentWeight: newWeight,
+                  adjustedBaselines: {
+                    ...currentSession.adjustedBaselines,
+                    [currentExercise.name]: {
+                      ...(currentSession.adjustedBaselines?.[currentExercise.name] || {}),
+                      [currentSetPerson]: adjustedBaseline,
+                    },
                   },
-                },
-              };
-              await saveWorkoutSession(updated);
-              setSession(updated);
+                };
+              });
             }}
           >
-            −
+            -
           </button>
           <strong>{session.currentWeight} lbs</strong>
-          <button onClick={async () => {
-            if (!currentPerson) return;
+          <button
+            onClick={() => {
+              updateStepperSession((currentSession) => {
+                const workoutForSession = currentSession.reorderedWorkout || workout;
+                const currentExercise = workoutForSession[currentSession.exerciseIndex];
+                const currentSetPerson = currentSession.firstPerson
+                  ? currentSession.exerciseOrder[currentSession.currentPersonIndex]
+                  : null;
 
-            const newWeight = session.currentWeight + 5;
-            const target = exercise.setPlan[session.currentSet - 1];
-            const adjustedBaseline =
-              newWeight -
-              (userStrategies[currentPerson] === "pyramid" ? target.weightOffset : 0);
+                if (!currentSetPerson) return currentSession;
 
-            const updated = {
-              ...session,
-              currentWeight: newWeight,
-              adjustedBaselines: {
-                ...session.adjustedBaselines,
-                [exercise.name]: {
-                  ...(session.adjustedBaselines?.[exercise.name] || {}),
-                  [currentPerson]: adjustedBaseline,
-                },
-              },
-            };
-            await saveWorkoutSession(updated);
-            setSession(updated);
-          }}>+</button>
+                const newWeight = currentSession.currentWeight + 5;
+                const target = currentExercise.setPlan[currentSession.currentSet - 1];
+                const adjustedBaseline =
+                  newWeight -
+                  (userStrategies[currentSetPerson] === "pyramid" ? target.weightOffset : 0);
+
+                return {
+                  ...currentSession,
+                  currentWeight: newWeight,
+                  adjustedBaselines: {
+                    ...currentSession.adjustedBaselines,
+                    [currentExercise.name]: {
+                      ...(currentSession.adjustedBaselines?.[currentExercise.name] || {}),
+                      [currentSetPerson]: adjustedBaseline,
+                    },
+                  },
+                };
+              });
+            }}
+          >
+            +
+          </button>
         </div>
 
         <div className="button-row">
-          <button className="secondary-button" onClick={() => recordSet("skipped")}>
+          <button className="secondary-button" disabled={isSaving} onClick={() => recordSet("skipped")}>
             Skip
           </button>
-          <button className="primary-button" onClick={() => recordSet("completed")}>
+          <button className="primary-button" disabled={isSaving} onClick={() => recordSet("completed")}>
             Done / Next
           </button>
         </div>
 
         <div>
-          <button className="link-button" onClick={cancelWorkout}>
+          <button className="link-button" disabled={isSaving} onClick={cancelWorkout}>
             Cancel Workout
           </button>
         </div>
