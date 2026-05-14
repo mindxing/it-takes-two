@@ -1,6 +1,6 @@
 import { db } from "./firebase";
 import { addDoc, collection, getDocs, orderBy, query, doc, onSnapshot, setDoc, getDoc } from "firebase/firestore";
-import type { Person } from "./workoutData";
+import type { Person, Exercise as WorkoutExercise } from "./workoutData";
 
 export const demoSessionId = "demo";
 
@@ -36,6 +36,65 @@ export function saveCompletedWorkoutSummary(summary: {
   results: SetResult[];
 }) {
   return addDoc(collection(db, "completedWorkouts"), summary);
+}
+
+export async function loadWorkoutPlan(fallbackWorkout: WorkoutExercise[]): Promise<WorkoutExercise[]> {
+  const planDoc = await getDoc(doc(db, "workoutPlans", "default"));
+
+  if (!planDoc.exists()) {
+    return fallbackWorkout;
+  }
+
+  const plan = planDoc.data() as {
+    active?: boolean;
+    exerciseIds?: string[];
+    items?: Array<Partial<WorkoutExercise> & { exerciseId?: string; active?: boolean }>;
+  };
+
+  if (plan.active === false) {
+    return fallbackWorkout;
+  }
+
+  const fallbackById = new Map(fallbackWorkout.map((exercise) => [exercise.id, exercise]));
+  const planItems: Array<Partial<WorkoutExercise> & { exerciseId?: string; active?: boolean }> =
+    plan.items ??
+    plan.exerciseIds?.map((exerciseId) => ({ exerciseId })) ??
+    [];
+
+  if (planItems.length === 0) {
+    return fallbackWorkout;
+  }
+
+  const exercises = await Promise.all(
+    planItems
+      .filter((item) => item.active !== false)
+      .map(async (item) => {
+        const exerciseId = item.exerciseId ?? item.id;
+
+        if (!exerciseId) return null;
+
+        const exerciseDoc = await getDoc(doc(db, "exercises", exerciseId));
+        const exerciseData = exerciseDoc.exists()
+          ? (exerciseDoc.data() as Partial<WorkoutExercise> & { active?: boolean })
+          : {};
+
+        if (exerciseData.active === false) return null;
+
+        const fallback = fallbackById.get(exerciseId);
+        const merged = {
+          ...fallback,
+          ...exerciseData,
+          ...item,
+          id: exerciseId,
+        };
+
+        return isWorkoutExercise(merged) ? merged : null;
+      })
+  );
+
+  const prepared = exercises.filter((exercise): exercise is WorkoutExercise => exercise !== null);
+
+  return prepared.length > 0 ? prepared : fallbackWorkout;
 }
 
 export type ExerciseOutcome = "exact" | "up" | "down" | "neutral";
@@ -93,6 +152,7 @@ export function saveUserProfile(person: string, weights: UserWeights) {
 }
 
 export type SetResult = {
+  exerciseId?: string;
   exerciseName: string;
   person: Person;
   setNumber: number;
@@ -107,9 +167,43 @@ export type SetTarget = {
 };
 
 export type Exercise = {
+  id: string;
   name: string;
   setPlan: SetTarget[];
 };
+
+function isWorkoutExercise(exercise: Partial<WorkoutExercise>): exercise is WorkoutExercise {
+  return (
+    typeof exercise.id === "string" &&
+    typeof exercise.name === "string" &&
+    typeof exercise.sets === "number" &&
+    typeof exercise.reps === "string" &&
+    typeof exercise.defaultReps === "number" &&
+    !!exercise.defaultWeight &&
+    Array.isArray(exercise.setPlan)
+  );
+}
+
+function exerciseKey(exercise: Exercise) {
+  return exercise.id;
+}
+
+function resultExerciseKey(result: SetResult) {
+  return result.exerciseId ?? result.exerciseName;
+}
+
+function isWarmupKey(key: string, workout: Exercise[]) {
+  const exercise = workout.find((item) => item.id === key || item.name === key);
+  return exercise?.id === "warm_up" || key === "Warm-up";
+}
+
+function profileWeight(
+  userProfiles: Record<string, Record<string, number>>,
+  person: string,
+  exercise: Exercise
+) {
+  return userProfiles[person]?.[exercise.id] ?? userProfiles[person]?.[exercise.name] ?? 0;
+}
 
 export function calculateExerciseOutcomes(
   results: SetResult[],
@@ -123,7 +217,9 @@ export function calculateExerciseOutcomes(
   const groupedResults = new Map<string, Map<string, SetResult[]>>();
 
   for (const result of results) {
-    if (result.exerciseName === "Warm-up") continue;
+    const key = resultExerciseKey(result);
+
+    if (isWarmupKey(key, workout)) continue;
 
     if (!groupedResults.has(result.person)) {
       groupedResults.set(result.person, new Map());
@@ -131,23 +227,24 @@ export function calculateExerciseOutcomes(
 
     const personResults = groupedResults.get(result.person)!;
 
-    if (!personResults.has(result.exerciseName)) {
-      personResults.set(result.exerciseName, []);
+    if (!personResults.has(key)) {
+      personResults.set(key, []);
     }
 
-    personResults.get(result.exerciseName)!.push(result);
+    personResults.get(key)!.push(result);
   }
 
   // Calculate outcome for each person-exercise combination
   for (const [person, exercises] of groupedResults) {
     outcomes[person] = {};
 
-    for (const [exerciseName, exerciseResults] of exercises) {
+    for (const [exerciseResultKey, exerciseResults] of exercises) {
       // Find the exercise plan
-      const exercise = workout.find((e) => e.name === exerciseName);
+      const exercise = workout.find((e) => e.id === exerciseResultKey || e.name === exerciseResultKey);
+      const outcomeKey = exercise ? exerciseKey(exercise) : exerciseResultKey;
 
       if (!exercise) {
-        outcomes[person][exerciseName] = "neutral";
+        outcomes[person][outcomeKey] = "neutral";
         continue;
       }
 
@@ -157,7 +254,7 @@ export function calculateExerciseOutcomes(
       );
 
       if (hasSkipped) {
-        outcomes[person][exerciseName] = "down";
+        outcomes[person][outcomeKey] = "down";
         continue;
       }
 
@@ -167,7 +264,7 @@ export function calculateExerciseOutcomes(
       );
 
       if (completedResults.length === 0) {
-        outcomes[person][exerciseName] = "neutral";
+        outcomes[person][outcomeKey] = "neutral";
         continue;
       }
 
@@ -177,7 +274,7 @@ export function calculateExerciseOutcomes(
       );
 
       // Base weight for this person/exercise
-      const baseWeight = userProfiles[person]?.[exerciseName] || 0;
+      const baseWeight = profileWeight(userProfiles, person, exercise);
 
       let isExact = true;
       let hasUp = false;
@@ -232,13 +329,13 @@ export function calculateExerciseOutcomes(
       }
 
       if (isExact) {
-        outcomes[person][exerciseName] = "exact";
+        outcomes[person][outcomeKey] = "exact";
       } else if (hasDown) {
-        outcomes[person][exerciseName] = "down";
+        outcomes[person][outcomeKey] = "down";
       } else if (hasUp && !hasDown) {
-        outcomes[person][exerciseName] = "up";
+        outcomes[person][outcomeKey] = "up";
       } else {
-        outcomes[person][exerciseName] = "neutral";
+        outcomes[person][outcomeKey] = "neutral";
       }
     }
   }
@@ -272,9 +369,10 @@ export function calculateProgressedUserProfilesFromHistory(
     if (!updatedProfiles[person]) continue;
 
     // Get all exercises except warm-up
-    const exercises = workoutPlan.filter((e) => e.name !== "Warm-up");
+    const exercises = workoutPlan.filter((e) => e.id !== "warm_up");
 
     for (const exercise of exercises) {
+      const exerciseId = exercise.id;
       const exerciseName = exercise.name;
 
       // Collect the last outcomes for this person-exercise
@@ -285,13 +383,17 @@ export function calculateProgressedUserProfilesFromHistory(
         if (
           workoutEntry.exerciseOutcomes &&
           workoutEntry.exerciseOutcomes[person] &&
-          workoutEntry.exerciseOutcomes[person][exerciseName]
+          (workoutEntry.exerciseOutcomes[person][exerciseId] ||
+            workoutEntry.exerciseOutcomes[person][exerciseName])
         ) {
-          outcomes.unshift(workoutEntry.exerciseOutcomes[person][exerciseName]);
+          outcomes.unshift(
+            workoutEntry.exerciseOutcomes[person][exerciseId] ??
+            workoutEntry.exerciseOutcomes[person][exerciseName]
+          );
         }
       }
 
-      const currentWeight = updatedProfiles[person][exerciseName] || 0;
+      const currentWeight = updatedProfiles[person][exerciseId] ?? updatedProfiles[person][exerciseName] ?? 0;
 
       // Apply progression rules
       let newWeight = currentWeight;
@@ -314,7 +416,7 @@ export function calculateProgressedUserProfilesFromHistory(
       }
 
       if (newWeight !== currentWeight && reason) {
-        updatedProfiles[person][exerciseName] = newWeight;
+        updatedProfiles[person][exerciseId] = newWeight;
         reasons.push({
           person,
           exercise: exerciseName,

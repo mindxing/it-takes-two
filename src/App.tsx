@@ -2,7 +2,7 @@ import { useEffect, useState, useRef } from "react";
 import "./App.css";
 import { people, workout, type Person, type Exercise } from "./workoutData";
 import { listenToWorkoutSession, saveWorkoutSession } from "./workoutSession";
-import { saveCompletedWorkoutSummary, loadCompletedWorkoutSummaries, loadUserProfiles, saveUserProfile, calculateExerciseOutcomes, calculateProgressedUserProfilesFromHistory, type SetResult, type ExerciseOutcomes } from "./workoutSession";
+import { saveCompletedWorkoutSummary, loadCompletedWorkoutSummaries, loadUserProfiles, saveUserProfile, loadWorkoutPlan, calculateExerciseOutcomes, calculateProgressedUserProfilesFromHistory, type SetResult, type ExerciseOutcomes } from "./workoutSession";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 
 declare const __APP_VERSION__: string;
@@ -27,24 +27,24 @@ type CompletedWorkout = {
 
 const defaultUserProfiles: Record<Person, Record<string, number>> = {
   Mike: {
-    "Leg Press": 125,
-    "Chest Press Machine": 65,
-    "Seated Row Machine": 55,
-    "Glute Machine": 55,
-    "Bicep Curl Machine": 55,
-    "Tricep Pushdown": 55,
-    "Abs": 0,
-    "Dumbbell Romanian Deadlift": 35,
+    leg_press: 125,
+    chest_press_machine: 65,
+    seated_row_machine: 55,
+    glute_machine: 55,
+    bicep_curl_machine: 55,
+    tricep_pushdown: 55,
+    abs: 0,
+    dumbbell_romanian_deadlift: 35,
   },
   Victoria: {
-    "Leg Press": 95,
-    "Chest Press Machine": 25,
-    "Seated Row Machine": 35,
-    "Glute Machine": 50,
-    "Bicep Curl Machine": 10,
-    "Tricep Pushdown": 30,
-    "Abs": 0,
-    "Dumbbell Romanian Deadlift": 20,
+    leg_press: 95,
+    chest_press_machine: 25,
+    seated_row_machine: 35,
+    glute_machine: 50,
+    bicep_curl_machine: 10,
+    tricep_pushdown: 30,
+    abs: 0,
+    dumbbell_romanian_deadlift: 20,
   },
 };
 
@@ -82,6 +82,30 @@ type WorkoutProgressProps = {
   workout: Exercise[];
 };
 
+function exerciseKey(exercise: Exercise) {
+  return exercise.id || exercise.name.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "");
+}
+
+function resultMatchesExercise(result: SetResult, exercise: Exercise) {
+  return result.exerciseId === exerciseKey(exercise) || (!result.exerciseId && result.exerciseName === exercise.name);
+}
+
+function getProfileWeight(
+  profiles: Record<Person, Record<string, number>>,
+  person: Person,
+  exercise: Exercise
+) {
+  return profiles[person][exerciseKey(exercise)] ?? profiles[person][exercise.name] ?? 0;
+}
+
+function getPersonExerciseValue(
+  values: Record<string, Partial<Record<Person, number>>> | undefined,
+  exercise: Exercise,
+  person: Person
+) {
+  return values?.[exerciseKey(exercise)]?.[person] ?? values?.[exercise.name]?.[person];
+}
+
 function WorkoutProgress({ exerciseIndex, workout }: WorkoutProgressProps) {
   const totalExercises = workout.length;
   const currentNumber = exerciseIndex + 1;
@@ -95,7 +119,7 @@ function WorkoutProgress({ exerciseIndex, workout }: WorkoutProgressProps) {
       <div className="progress-dots">
         {workout.map((item, index) => (
           <span
-            key={item.name}
+            key={exerciseKey(item)}
             className={
               index === exerciseIndex
                 ? "progress-dot current"
@@ -133,6 +157,7 @@ const initialSession: WorkoutSession = {
 
 function App() {
   const [session, setSession] = useState<WorkoutSession>(initialSession);
+  const [baseWorkout, setBaseWorkout] = useState<Exercise[]>(workout);
   const [activeRemoteSession, setActiveRemoteSession] = useState<WorkoutSession | null>(null);
   const [showDetails, setShowDetails] = useState(false);
   const [completedWorkouts, setCompletedWorkouts] = useState<CompletedWorkout[]>([]);
@@ -158,7 +183,7 @@ function App() {
     viewingPastRef.current = viewingPast;
   }, [viewingPast]);
 
-  const effectiveWorkout = session.reorderedWorkout || workout;
+  const effectiveWorkout = session.reorderedWorkout || baseWorkout;
   const warmupRunning = !!session.warmupStartedAt && session.exerciseIndex === 0;
   const exercise = effectiveWorkout[session.exerciseIndex];
   const currentPerson = session.firstPerson ? session.exerciseOrder[session.currentPersonIndex] : null;
@@ -294,6 +319,15 @@ function App() {
   }, [session.complete]);
 
   useEffect(() => {
+    loadWorkoutPlan(workout)
+      .then(setBaseWorkout)
+      .catch((error) => {
+        console.error("Failed to load workout plan, using local fallback:", error);
+        setBaseWorkout(workout);
+      });
+  }, []);
+
+  useEffect(() => {
     loadUserProfiles(defaultUserProfiles).then((profiles) => {
       setUserProfiles({
         Mike: { ...defaultUserProfiles.Mike, ...profiles.Mike },
@@ -347,6 +381,7 @@ function App() {
     const currentPerson = session.exerciseOrder[session.currentPersonIndex];
 
     const newResult = {
+      exerciseId: exerciseKey(exercise),
       exerciseName: exercise.name,
       person: currentPerson,
       setNumber: session.currentSet,
@@ -368,14 +403,14 @@ function App() {
       const target = exercise.setPlan[session.currentSet - 1];
       const nextReps =
         userStrategies[nextPerson] === "straight"
-          ? session.adjustedRepBaselines?.[exercise.name]?.[nextPerson] ?? target.reps
+          ? getPersonExerciseValue(session.adjustedRepBaselines, exercise, nextPerson) ?? target.reps
           : target.reps;
       const nextAdjustedRepBaselines =
         userStrategies[nextPerson] === "straight"
           ? {
             ...session.adjustedRepBaselines,
-            [exercise.name]: {
-              ...(session.adjustedRepBaselines?.[exercise.name] || {}),
+            [exerciseKey(exercise)]: {
+              ...(session.adjustedRepBaselines?.[exerciseKey(exercise)] || {}),
               [nextPerson]: nextReps,
             },
           }
@@ -387,8 +422,8 @@ function App() {
         currentReps: nextReps,
         currentWeight:
           (
-            session.adjustedBaselines?.[exercise.name]?.[nextPerson] ??
-            userProfiles[nextPerson][exercise.name] ??
+            getPersonExerciseValue(session.adjustedBaselines, exercise, nextPerson) ??
+            getProfileWeight(userProfiles, nextPerson, exercise) ??
             0
           ) + (userStrategies[nextPerson] === "pyramid" ? target.weightOffset : 0),
         adjustedRepBaselines: nextAdjustedRepBaselines,
@@ -399,14 +434,14 @@ function App() {
       const target = exercise.setPlan[nextSet - 1];
       const nextReps =
         userStrategies[nextPerson] === "straight"
-          ? session.adjustedRepBaselines?.[exercise.name]?.[nextPerson] ?? target.reps
+          ? getPersonExerciseValue(session.adjustedRepBaselines, exercise, nextPerson) ?? target.reps
           : target.reps;
       const nextAdjustedRepBaselines =
         userStrategies[nextPerson] === "straight"
           ? {
             ...session.adjustedRepBaselines,
-            [exercise.name]: {
-              ...(session.adjustedRepBaselines?.[exercise.name] || {}),
+            [exerciseKey(exercise)]: {
+              ...(session.adjustedRepBaselines?.[exerciseKey(exercise)] || {}),
               [nextPerson]: nextReps,
             },
           }
@@ -419,8 +454,8 @@ function App() {
         currentReps: nextReps,
         currentWeight:
           (
-            session.adjustedBaselines?.[exercise.name]?.[nextPerson] ??
-            userProfiles[nextPerson][exercise.name] ??
+            getPersonExerciseValue(session.adjustedBaselines, exercise, nextPerson) ??
+            getProfileWeight(userProfiles, nextPerson, exercise) ??
             0
           ) + (userStrategies[nextPerson] === "pyramid" ? target.weightOffset : 0),
         adjustedRepBaselines: nextAdjustedRepBaselines,
@@ -491,12 +526,12 @@ function App() {
       0
     );
 
-    const workoutForSummary = currentSession.reorderedWorkout || workout;
+    const workoutForSummary = currentSession.reorderedWorkout || baseWorkout;
     const exercisesWithResults = workoutForSummary
-      .filter((exercise) => exercise.name !== "Warm-up")
+      .filter((exercise) => exerciseKey(exercise) !== "warm_up")
       .map((exercise) => ({
         name: exercise.name,
-        results: currentSession.results.filter((r) => r.exerciseName === exercise.name),
+        results: currentSession.results.filter((r) => resultMatchesExercise(r, exercise)),
       }))
       .filter((exercise) => exercise.results.length > 0);
 
@@ -609,16 +644,17 @@ function App() {
                 // Calculate weight progression based on history
                 const { updatedProfiles } = calculateProgressedUserProfilesFromHistory(
                   userProfiles,
-                  workout,
+                  baseWorkout,
                   completedWorkouts
                 );
 
                 // If weights changed, update state and save to Firestore
                 let profilesChanged = false;
                 for (const person of ["Mike", "Victoria"] as const) {
-                  for (const exercise of workout) {
-                    const oldWeight = userProfiles[person][exercise.name] || 0;
-                    const newWeight = updatedProfiles[person][exercise.name] || 0;
+                  for (const exercise of baseWorkout) {
+                    const key = exerciseKey(exercise);
+                    const oldWeight = getProfileWeight(userProfiles, person, exercise);
+                    const newWeight = updatedProfiles[person][key] ?? updatedProfiles[person][exercise.name] ?? 0;
                     if (oldWeight !== newWeight) {
                       profilesChanged = true;
                       break;
@@ -765,18 +801,18 @@ function App() {
                   currentPersonIndex: 0,
                   currentSet: 1,
                   currentReps: target.reps,
-                  currentWeight: (userProfiles["Victoria"][exercise.name] || 0) + (userStrategies["Victoria"] === "pyramid" ? target.weightOffset : 0),
+                  currentWeight: getProfileWeight(userProfiles, "Victoria", exercise) + (userStrategies["Victoria"] === "pyramid" ? target.weightOffset : 0),
                   adjustedBaselines: {
                     ...session.adjustedBaselines,
-                    [exercise.name]: {
-                      ...(session.adjustedBaselines?.[exercise.name] || {}),
-                      Victoria: userProfiles["Victoria"][exercise.name] || 0,
+                    [exerciseKey(exercise)]: {
+                      ...(session.adjustedBaselines?.[exerciseKey(exercise)] || {}),
+                      Victoria: getProfileWeight(userProfiles, "Victoria", exercise),
                     },
                   },
                   adjustedRepBaselines: {
                     ...session.adjustedRepBaselines,
-                    [exercise.name]: {
-                      ...(session.adjustedRepBaselines?.[exercise.name] || {}),
+                    [exerciseKey(exercise)]: {
+                      ...(session.adjustedRepBaselines?.[exerciseKey(exercise)] || {}),
                       Victoria: target.reps,
                     },
                   },
@@ -803,18 +839,18 @@ function App() {
                   currentPersonIndex: 0,
                   currentSet: 1,
                   currentReps: target.reps,
-                  currentWeight: (userProfiles["Mike"][exercise.name] || 0) + (userStrategies["Mike"] === "pyramid" ? target.weightOffset : 0),
+                  currentWeight: getProfileWeight(userProfiles, "Mike", exercise) + (userStrategies["Mike"] === "pyramid" ? target.weightOffset : 0),
                   adjustedBaselines: {
                     ...session.adjustedBaselines,
-                    [exercise.name]: {
-                      ...(session.adjustedBaselines?.[exercise.name] || {}),
-                      Mike: userProfiles["Mike"][exercise.name] || 0,
+                    [exerciseKey(exercise)]: {
+                      ...(session.adjustedBaselines?.[exerciseKey(exercise)] || {}),
+                      Mike: getProfileWeight(userProfiles, "Mike", exercise),
                     },
                   },
                   adjustedRepBaselines: {
                     ...session.adjustedRepBaselines,
-                    [exercise.name]: {
-                      ...(session.adjustedRepBaselines?.[exercise.name] || {}),
+                    [exerciseKey(exercise)]: {
+                      ...(session.adjustedRepBaselines?.[exerciseKey(exercise)] || {}),
                       Mike: target.reps,
                     },
                   },
@@ -874,7 +910,7 @@ function App() {
           <button
             onClick={() => {
               updateStepperSession((currentSession) => {
-                const workoutForSession = currentSession.reorderedWorkout || workout;
+                const workoutForSession = currentSession.reorderedWorkout || baseWorkout;
                 const currentExercise = workoutForSession[currentSession.exerciseIndex];
                 const currentSetPerson = currentSession.firstPerson
                   ? currentSession.exerciseOrder[currentSession.currentPersonIndex]
@@ -889,8 +925,8 @@ function App() {
                   currentReps: newReps,
                   adjustedRepBaselines: {
                     ...currentSession.adjustedRepBaselines,
-                    [currentExercise.name]: {
-                      ...(currentSession.adjustedRepBaselines?.[currentExercise.name] || {}),
+                    [exerciseKey(currentExercise)]: {
+                      ...(currentSession.adjustedRepBaselines?.[exerciseKey(currentExercise)] || {}),
                       [currentSetPerson]: newReps,
                     },
                   },
@@ -904,7 +940,7 @@ function App() {
           <button
             onClick={() => {
               updateStepperSession((currentSession) => {
-                const workoutForSession = currentSession.reorderedWorkout || workout;
+                const workoutForSession = currentSession.reorderedWorkout || baseWorkout;
                 const currentExercise = workoutForSession[currentSession.exerciseIndex];
                 const currentSetPerson = currentSession.firstPerson
                   ? currentSession.exerciseOrder[currentSession.currentPersonIndex]
@@ -919,8 +955,8 @@ function App() {
                   currentReps: newReps,
                   adjustedRepBaselines: {
                     ...currentSession.adjustedRepBaselines,
-                    [currentExercise.name]: {
-                      ...(currentSession.adjustedRepBaselines?.[currentExercise.name] || {}),
+                    [exerciseKey(currentExercise)]: {
+                      ...(currentSession.adjustedRepBaselines?.[exerciseKey(currentExercise)] || {}),
                       [currentSetPerson]: newReps,
                     },
                   },
@@ -937,7 +973,7 @@ function App() {
           <button
             onClick={() => {
               updateStepperSession((currentSession) => {
-                const workoutForSession = currentSession.reorderedWorkout || workout;
+                const workoutForSession = currentSession.reorderedWorkout || baseWorkout;
                 const currentExercise = workoutForSession[currentSession.exerciseIndex];
                 const currentSetPerson = currentSession.firstPerson
                   ? currentSession.exerciseOrder[currentSession.currentPersonIndex]
@@ -956,8 +992,8 @@ function App() {
                   currentWeight: newWeight,
                   adjustedBaselines: {
                     ...currentSession.adjustedBaselines,
-                    [currentExercise.name]: {
-                      ...(currentSession.adjustedBaselines?.[currentExercise.name] || {}),
+                    [exerciseKey(currentExercise)]: {
+                      ...(currentSession.adjustedBaselines?.[exerciseKey(currentExercise)] || {}),
                       [currentSetPerson]: adjustedBaseline,
                     },
                   },
@@ -971,7 +1007,7 @@ function App() {
           <button
             onClick={() => {
               updateStepperSession((currentSession) => {
-                const workoutForSession = currentSession.reorderedWorkout || workout;
+                const workoutForSession = currentSession.reorderedWorkout || baseWorkout;
                 const currentExercise = workoutForSession[currentSession.exerciseIndex];
                 const currentSetPerson = currentSession.firstPerson
                   ? currentSession.exerciseOrder[currentSession.currentPersonIndex]
@@ -990,8 +1026,8 @@ function App() {
                   currentWeight: newWeight,
                   adjustedBaselines: {
                     ...currentSession.adjustedBaselines,
-                    [currentExercise.name]: {
-                      ...(currentSession.adjustedBaselines?.[currentExercise.name] || {}),
+                    [exerciseKey(currentExercise)]: {
+                      ...(currentSession.adjustedBaselines?.[exerciseKey(currentExercise)] || {}),
                       [currentSetPerson]: adjustedBaseline,
                     },
                   },

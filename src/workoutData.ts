@@ -8,6 +8,7 @@ export type SetTarget = {
 export type Person = "Victoria" | "Mike";
 
 export type Exercise = {
+  id: string;
   name: string;
   sets: number;
   reps: string;
@@ -39,6 +40,7 @@ export const people: Person[] = ["Victoria", "Mike"];
 
 export const workout: Exercise[] = [
   {
+    id: "warm_up",
     name: "Warm-up",
     sets: 1,
     reps: "5–8 min",
@@ -49,6 +51,7 @@ export const workout: Exercise[] = [
 
   },
   {
+    id: "leg_press",
   name: "Leg Press",
   sets: 3,
   reps: "8–12",
@@ -57,6 +60,7 @@ export const workout: Exercise[] = [
   setPlan: standardPyramid,
 },
   {
+    id: "chest_press_machine",
     name: "Chest Press Machine",
     sets: 3,
     reps: "8–12",
@@ -65,6 +69,7 @@ export const workout: Exercise[] = [
     setPlan: standardPyramid,
   },
   {
+    id: "seated_row_machine",
     name: "Seated Row Machine",
     sets: 3,
     reps: "8–12",
@@ -73,6 +78,7 @@ export const workout: Exercise[] = [
     setPlan: standardPyramid,
   },
   {
+    id: "glute_machine",
     name: "Glute Machine",
     sets: 3,
     reps: "10–15",
@@ -82,6 +88,7 @@ export const workout: Exercise[] = [
     setPlan: smallStepPyramid,
   },
   {
+    id: "bicep_curl_machine",
     name: "Bicep Curl Machine",
     sets: 3,
     reps: "10–15",
@@ -90,6 +97,7 @@ export const workout: Exercise[] = [
     setPlan: smallStepPyramid,
   },
   {
+    id: "tricep_pushdown",
     name: "Tricep Pushdown",
     sets: 3,
     reps: "10–15",
@@ -98,6 +106,7 @@ export const workout: Exercise[] = [
     setPlan: smallStepPyramid,
   },
   {
+    id: "abs",
     name: "Abs",
     sets: 3,
     reps: "Machine or 20–45s plank",
@@ -106,6 +115,7 @@ export const workout: Exercise[] = [
     setPlan: straightSets,
   },
   {
+    id: "dumbbell_romanian_deadlift",
     name: "Dumbbell Romanian Deadlift",
     sets: 3,
     reps: "8–12",
