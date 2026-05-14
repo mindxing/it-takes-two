@@ -8,6 +8,7 @@
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
+    "seed:workout-plan": "node scripts/seedWorkoutPlan.mjs",
     "version:patch": "npm version patch --no-git-tag-version"
   },
   "dependencies": {

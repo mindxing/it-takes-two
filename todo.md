@@ -1,71 +1,95 @@
 # TODO
 
-## 🚀 Immediate (Post-Deploy)
+## Done
 
-- [ ] Commit and push deployed working version
-- [ ] Test on real devices (2 phones)
+- [x] Add rapid-tap hardening for reps and weight steppers
+- [x] Disable critical action buttons while saves are in flight
+- [x] Add patch version bump script
+- [x] Display app version from `package.json`
+- [x] Add stable exercise IDs in local workout data
+- [x] Store `exerciseId` in new workout results
+- [x] Keep backward compatibility with old exercise-name history/profile keys
+- [x] Add Firestore-backed workout plan read path with local fallback
+- [x] Add one-off workout plan seed script
+- [x] Seed current workout plan data into Firestore
+- [x] Commit data-driven workout plan foundation
+
+## Immediate
+
+- [ ] Push latest local commits when ready
+- [ ] Commit seed script and todo updates if keeping them
+- [ ] Confirm deployed app reads `workoutPlans/default` successfully
+- [ ] Test on real devices
   - [ ] Start / Join workout
-  - [ ] Sync between devices
+  - [ ] Warm-up timer
+  - [ ] Rapid rep/weight taps on slow gym internet
+  - [ ] Who-goes-first sync
+  - [ ] Postpone exercise sync
   - [ ] Cancel workout sync
   - [ ] Complete workout sync
   - [ ] Completed history graph
   - [ ] Weight progression updates
 
-## 🔒 Security
+## Data-Driven Workout Plans
+
+- [ ] Decide which exercises to replace
+- [ ] Add new `exercises/{exerciseId}` documents
+- [ ] Update `workoutPlans/default.exerciseIds`
+- [ ] Add default profile weights for new exercise IDs
+- [ ] Decide whether set/reps/setPlan should live in `workoutPlans/default.items`
+- [ ] Add an admin/edit UI for workout plans, if manual Firebase editing becomes annoying
+
+## UX Improvements
+
+- [ ] Add cancel workout to the who goes first screen
+- [ ] Add loading states
+  - [ ] Connecting
+  - [ ] Saving
+  - [ ] Loading workout plan
+- [ ] Improve mobile layout
+- [ ] Increase button sizes
+- [ ] Reduce accidental taps
+- [ ] Make current state clearer: person, set, exercise
+- [ ] Remove debug text from completed workout screen
+- [ ] Improve graph styling
+
+## Reliability
+
+- [ ] Add visible Firestore write failure handling
+- [ ] Handle missing or invalid Firestore workout plan data gracefully in the UI
+- [ ] Protect workout completion summary from duplicate writes
+- [ ] Consider transactions for critical transitions like Done / Next
+- [ ] Auto-refresh completed workouts instead of loading only after completion
+
+## Security
 
 - [ ] Replace Firestore test rules with proper rules
-- [ ] Ensure only intended data is readable/writable
+- [ ] Ensure only intended collections are readable/writable
+- [ ] Consider authentication
 
-## ⚙️ Reliability
+## Cleanup
 
-- [ ] Add loading states
-  - [ ] "Connecting..."
-  - [ ] "Saving..."
-- [ ] Add error handling
-  - [ ] Firestore write failures
-  - [ ] Missing session
-- [ ] Handle race conditions
-  - [ ] Double taps on buttons
-  - [ ] Simultaneous updates from two devices
-  - [ ] Cancel during update
-
-## 👤 User Identity
-
-- [ ] Improve device/person selection (Mike vs Victoria)
-- [ ] Persist user identity per device
-
-## 🧹 Cleanup
-
-- [ ] Remove dev/test buttons (or guard with `import.meta.env.DEV`)
+- [ ] Clean up mojibake/encoding damage in docs and UI text
 - [ ] Delete old Firestore test data
   - [ ] test collection
   - [ ] old demo sessions
   - [ ] malformed completedWorkouts
+- [ ] Consider lazy-loading Recharts to reduce initial bundle size
 
-## 📱 UX Improvements
+## Future
 
-- [ ] Improve mobile layout
-- [ ] Increase button sizes
-- [ ] Reduce accidental taps
-- [ ] Make current state clearer (person, set, exercise)
-
-## 📊 Data & Features
-
-- [ ] Auto-refresh completed workouts (no reload)
-- [ ] Improve graph styling
-- [ ] Add more workout metrics (optional)
-
-## 🧠 Future Enhancements
-
+- [ ] Improve device/person selection: Mike vs Victoria
+- [ ] Persist user identity per device
 - [ ] Improve weight progression algorithm
 - [ ] Add session history browsing
-- [ ] Add custom domains (optional)
-- [ ] Add authentication (optional)
+- [ ] Add more workout metrics
+- [ ] Add custom domain
 
 ---
 
-## 📝 Notes
+## Notes
 
-- Firestore is the source of truth
-- Avoid mixing local-only state with synced state
-- Keep changes incremental and test frequently
+- Firestore is the source of truth for active session state.
+- Local hardcoded workout data remains the fallback if Firestore plan data is missing or invalid.
+- Exercise IDs are the durable keys; exercise names are display text and backward compatibility.
+- Keep changes incremental and test frequently on real phones.
