@@ -1,5 +1,5 @@
 import { db } from "./firebase";
-import { addDoc, collection, getDocs, orderBy, query, doc, onSnapshot, setDoc, getDoc } from "firebase/firestore";
+import { addDoc, collection, getDocs, orderBy, query, doc, onSnapshot, setDoc, getDoc, runTransaction } from "firebase/firestore";
 import type { Person, Exercise as WorkoutExercise } from "./workoutData";
 
 export const demoSessionId = "demo";
@@ -15,7 +15,21 @@ export function saveWorkoutSession(session: unknown) {
     prepared.createdAt = now;
   }
 
-  return setDoc(doc(db, "workoutSessions", demoSessionId), prepared, { merge: true });
+  const sessionRef = doc(db, "workoutSessions", demoSessionId);
+  const nextRevision = typeof prepared.localRevision === "number" ? prepared.localRevision : 0;
+
+  return runTransaction(db, async (transaction) => {
+    const snapshot = await transaction.get(sessionRef);
+    const currentRevision = snapshot.exists()
+      ? (snapshot.data().localRevision as number | undefined) ?? 0
+      : 0;
+
+    if (snapshot.exists() && nextRevision < currentRevision) {
+      return;
+    }
+
+    transaction.set(sessionRef, prepared, { merge: true });
+  });
 }
 
 export function listenToWorkoutSession(

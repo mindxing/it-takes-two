@@ -10,6 +10,13 @@ declare const __APP_VERSION__: string;
 type SetStatus = "completed" | "skipped";
 
 type WeightStrategy = "pyramid" | "straight";
+type PendingAction =
+  | "start"
+  | "warmup"
+  | "choose-first"
+  | "postpone"
+  | "skip"
+  | "done";
 
 const APP_VERSION = __APP_VERSION__;
 const CLIENT_ID =
@@ -165,15 +172,13 @@ function App() {
   const [viewingPast, setViewingPast] = useState(false);
   const [pastSession, setPastSession] = useState<WorkoutSession | null>(null);
   const [warmupSeconds, setWarmupSeconds] = useState(0);
-  const [savingCount, setSavingCount] = useState(0);
+  const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
   const sessionRef = useRef(session);
   const viewingPastRef = useRef(viewingPast);
   const latestLocalRevisionRef = useRef(0);
   const pendingStepperSaveRef = useRef<number | null>(null);
   const pendingStepperSessionRef = useRef<WorkoutSession | null>(null);
   const clientIdRef = useRef(CLIENT_ID);
-
-  const isSaving = savingCount > 0;
 
   useEffect(() => {
     sessionRef.current = session;
@@ -216,21 +221,26 @@ function App() {
   }
 
   async function savePreparedSession(nextSession: WorkoutSession) {
-    setSavingCount((count) => count + 1);
-
-    try {
-      await saveWorkoutSession(nextSession);
-    } finally {
-      setSavingCount((count) => Math.max(0, count - 1));
-    }
+    await saveWorkoutSession(nextSession);
   }
 
-  async function commitSession(nextSession: WorkoutSession) {
+  async function commitSession(nextSession: WorkoutSession, action?: PendingAction) {
     clearPendingStepperSave();
 
     const prepared = prepareLocalSession(nextSession);
     setLocalSession(prepared);
-    await savePreparedSession(prepared);
+
+    if (action) {
+      setPendingAction(action);
+    }
+
+    try {
+      await savePreparedSession(prepared);
+    } finally {
+      if (action) {
+        setPendingAction((current) => current === action ? null : current);
+      }
+    }
 
     return prepared;
   }
@@ -356,8 +366,6 @@ function App() {
   }, [session.warmupStartedAt, session.exerciseIndex]);
 
   async function cancelWorkout() {
-    if (isSaving) return;
-
     await commitSession({
       ...sessionRef.current,
       status: "cancelled",
@@ -371,7 +379,9 @@ function App() {
   }
 
   async function recordSet(status: SetStatus) {
-    if (isSaving) return;
+    const action = status === "skipped" ? "skip" : "done";
+
+    if (pendingAction === action) return;
 
     const session = sessionRef.current;
 
@@ -509,7 +519,7 @@ function App() {
       }
     }
 
-    await commitSession(newSession);
+    await commitSession(newSession, action);
   }
 
   if (session.complete || viewingPast) {
@@ -636,9 +646,9 @@ function App() {
 
           <button
             className="primary-button"
-            disabled={isSaving}
+            disabled={pendingAction === "start"}
             onClick={async () => {
-              if (isSaving) return;
+              if (pendingAction === "start") return;
 
               try {
                 // Calculate weight progression based on history
@@ -680,7 +690,7 @@ function App() {
                   status: "active" as const,
                 };
 
-                await commitSession(newSession);
+                await commitSession(newSession, "start");
               } catch (error) {
                 console.error("Failed to save session:", error);
               }
@@ -738,9 +748,9 @@ function App() {
 
           <button
             className="primary-button"
-            disabled={isSaving}
+            disabled={pendingAction === "warmup"}
             onClick={async () => {
-              if (isSaving) return;
+              if (pendingAction === "warmup") return;
 
               if (!warmupRunning) {
                 const newSession = {
@@ -748,7 +758,7 @@ function App() {
                   warmupStartedAt: new Date().toISOString(),
                 };
 
-                await commitSession(newSession);
+                await commitSession(newSession, "warmup");
                 return;
               }
 
@@ -761,7 +771,7 @@ function App() {
                 currentSet: 1,
               };
 
-              await commitSession(newSession);
+              await commitSession(newSession, "warmup");
             }}
           >
             {warmupRunning ? "Complete warmup" : "Start warmup"}
@@ -787,9 +797,9 @@ function App() {
 
             <button
               className="primary-button"
-              disabled={isSaving}
+              disabled={pendingAction === "choose-first"}
               onClick={async () => {
-                if (isSaving) return;
+                if (pendingAction === "choose-first") return;
 
                 const order: Person[] = ["Victoria", "Mike"];
                 const target = exercise.setPlan[0];
@@ -818,16 +828,16 @@ function App() {
                   },
                 };
 
-                await commitSession(newSession);
+                await commitSession(newSession, "choose-first");
               }}
             >
               Victoria
             </button>
             <button
               className="primary-button"
-              disabled={isSaving}
+              disabled={pendingAction === "choose-first"}
               onClick={async () => {
-                if (isSaving) return;
+                if (pendingAction === "choose-first") return;
 
                 const order: Person[] = ["Mike", "Victoria"];
                 const target = exercise.setPlan[0];
@@ -856,7 +866,7 @@ function App() {
                   },
                 };
 
-                await commitSession(newSession);
+                await commitSession(newSession, "choose-first");
               }}
             >
               Mike
@@ -865,10 +875,10 @@ function App() {
 
           <button
             className="link-button"
-            disabled={isSaving}
+            disabled={pendingAction === "postpone"}
 
             onClick={async () => {
-              if (isSaving) return;
+              if (pendingAction === "postpone") return;
 
               if (session.exerciseIndex >= effectiveWorkout.length - 1) return;
 
@@ -886,7 +896,7 @@ function App() {
                 reorderedWorkout: newWorkout,
               };
 
-              await commitSession(newSession);
+              await commitSession(newSession, "postpone");
             }}
           >
             Postpone this exercise
@@ -1040,16 +1050,16 @@ function App() {
         </div>
 
         <div className="button-row">
-          <button className="secondary-button" disabled={isSaving} onClick={() => recordSet("skipped")}>
+          <button className="secondary-button" disabled={pendingAction === "skip"} onClick={() => recordSet("skipped")}>
             Skip
           </button>
-          <button className="primary-button" disabled={isSaving} onClick={() => recordSet("completed")}>
+          <button className="primary-button" disabled={pendingAction === "done"} onClick={() => recordSet("completed")}>
             Done / Next
           </button>
         </div>
 
         <div>
-          <button className="link-button" disabled={isSaving} onClick={cancelWorkout}>
+          <button className="link-button" onClick={cancelWorkout}>
             Cancel Workout
           </button>
         </div>
