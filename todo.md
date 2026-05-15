@@ -13,29 +13,34 @@
 - [x] Add one-off workout plan seed script
 - [x] Seed current workout plan data into Firestore
 - [x] Commit data-driven workout plan foundation
+- [x] Add compound exercise support for inner/outer thigh machine
+- [x] Replace dumbbell Romanian deadlift with thigh machine in seeded default plan
+- [x] Snapshot loaded workout plan into new workout sessions
 
 ## Immediate
 
 - [ ] Push latest local commits when ready
-- [ ] Commit seed script and todo updates if keeping them
-- [ ] Confirm deployed app reads `workoutPlans/default` successfully
+- [ ] Commit docs updates
+- [x] Confirm local app reads `workoutPlans/default` successfully
+- [ ] Confirm deployed app reads updated `workoutPlans/default` successfully
 - [ ] Test on real devices
-  - [ ] Start / Join workout
+  - [x] Start / Join workout
   - [ ] Warm-up timer
   - [ ] Rapid rep/weight taps on slow gym internet
-  - [ ] Who-goes-first sync
+  - [x] Who-goes-first sync
   - [ ] Postpone exercise sync
-  - [ ] Cancel workout sync
+  - [x] Cancel workout sync
   - [ ] Complete workout sync
   - [ ] Completed history graph
   - [ ] Weight progression updates
+  - [x] Inner / outer thigh machine flow
 
 ## Data-Driven Workout Plans
 
-- [ ] Decide which exercises to replace
-- [ ] Add new `exercises/{exerciseId}` documents
-- [ ] Update `workoutPlans/default.exerciseIds`
-- [ ] Add default profile weights for new exercise IDs
+- [x] Decide which exercises to replace
+- [x] Add new `exercises/{exerciseId}` documents
+- [x] Update `workoutPlans/default.exerciseIds`
+- [x] Add default profile weights for new exercise IDs
 - [ ] Decide whether set/reps/setPlan should live in `workoutPlans/default.items`
 - [ ] Add an admin/edit UI for workout plans, if manual Firebase editing becomes annoying
 
@@ -92,4 +97,5 @@
 - Firestore is the source of truth for active session state.
 - Local hardcoded workout data remains the fallback if Firestore plan data is missing or invalid.
 - Exercise IDs are the durable keys; exercise names are display text and backward compatibility.
+- Compound exercises use movement IDs for per-movement weights and results.
 - Keep changes incremental and test frequently on real phones.

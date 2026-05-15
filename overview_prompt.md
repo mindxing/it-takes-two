@@ -57,6 +57,22 @@ Each exercise includes:
 * Weight
 * Weight progression strategy
 
+Compound exercises are supported.
+
+Behavior:
+
+* A compound exercise can contain multiple movements
+* Each movement has its own movement ID and display name
+* A person completes each movement before the workout switches to the other person
+* Results store both the parent exercise ID and movement ID when applicable
+* Movement IDs are used for movement-specific weights
+
+Current compound exercise:
+
+* Inner / Outer Thigh Machine
+  * Inner Thigh
+  * Outer Thigh
+
 ### Weight Strategies
 
 Per-user strategies supported:
@@ -96,6 +112,7 @@ Current behavior:
 
 * "Postpone exercise" moves the current exercise to the END of the remaining workout list
 * Reordered exercises persist in Firestore and sync across devices
+* New workout sessions snapshot the loaded workout plan into session state so the active session keeps the intended exercise order
 
 ---
 
@@ -180,6 +197,7 @@ Stores:
 
 * Base weight per exercise
 * Per-user exercise defaults
+* Movement-specific weights for compound exercises
 
 Behavior:
 
@@ -244,6 +262,29 @@ Recent fixes include:
 * Firestore listeners drive UI updates
 * Firestore is authoritative
 * Local state is mostly presentation-only
+
+## Data-Driven Workout Plan
+
+Firestore stores the default workout plan.
+
+Collections/documents:
+
+* `workoutPlans/default`
+  * `exerciseIds` controls workout order
+* `exercises/{exerciseId}`
+  * stores active state, type, display name, and lightweight metadata
+* `userProfiles/{person}`
+  * stores exercise and movement weights
+
+The app still keeps canonical local workout definitions as a fallback and to provide complete set/rep/default data for known exercises. Firestore can keep exercise documents minimal.
+
+The seed script `scripts/seedWorkoutPlan.mjs` writes:
+
+* `workoutPlans/default`
+* `exercises/*`
+* movement profile weights for the thigh machine
+
+The current seeded default plan replaces Dumbbell Romanian Deadlift with Inner / Outer Thigh Machine
 
 ---
 
