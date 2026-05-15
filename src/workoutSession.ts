@@ -1,35 +1,37 @@
 import { db } from "./firebase";
-import { addDoc, collection, getDocs, orderBy, query, doc, onSnapshot, setDoc, getDoc, runTransaction } from "firebase/firestore";
+import { addDoc, collection, getDocs, orderBy, query, doc, onSnapshot, setDoc, getDoc } from "firebase/firestore";
 import type { Person, Exercise as WorkoutExercise } from "./workoutData";
 
 export const demoSessionId = "demo";
 
+function removeUndefinedValues(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value.map(removeUndefinedValues);
+  }
+
+  if (value && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>)
+        .filter(([, itemValue]) => itemValue !== undefined)
+        .map(([key, itemValue]) => [key, removeUndefinedValues(itemValue)])
+    );
+  }
+
+  return value;
+}
+
 export function saveWorkoutSession(session: unknown) {
   const now = new Date().toISOString();
-  const prepared = {
+  const prepared = removeUndefinedValues({
     ...(session as Record<string, unknown>),
     updatedAt: now,
-  } as Record<string, unknown>;
+  }) as Record<string, unknown>;
 
   if (!prepared.createdAt) {
     prepared.createdAt = now;
   }
 
-  const sessionRef = doc(db, "workoutSessions", demoSessionId);
-  const nextRevision = typeof prepared.localRevision === "number" ? prepared.localRevision : 0;
-
-  return runTransaction(db, async (transaction) => {
-    const snapshot = await transaction.get(sessionRef);
-    const currentRevision = snapshot.exists()
-      ? (snapshot.data().localRevision as number | undefined) ?? 0
-      : 0;
-
-    if (snapshot.exists() && nextRevision < currentRevision) {
-      return;
-    }
-
-    transaction.set(sessionRef, prepared, { merge: true });
-  });
+  return setDoc(doc(db, "workoutSessions", demoSessionId), prepared, { merge: true });
 }
 
 export function listenToWorkoutSession(
@@ -40,6 +42,11 @@ export function listenToWorkoutSession(
       onSessionChange(snapshot.data());
     }
   });
+}
+
+export async function loadCurrentWorkoutSession() {
+  const snapshot = await getDoc(doc(db, "workoutSessions", demoSessionId));
+  return snapshot.exists() ? snapshot.data() : null;
 }
 
 export function saveCompletedWorkoutSummary(summary: {
@@ -168,6 +175,8 @@ export function saveUserProfile(person: string, weights: UserWeights) {
 export type SetResult = {
   exerciseId?: string;
   exerciseName: string;
+  movementId?: string;
+  movementName?: string;
   person: Person;
   setNumber: number;
   reps: number;
@@ -184,6 +193,11 @@ export type Exercise = {
   id: string;
   name: string;
   setPlan: SetTarget[];
+  movements?: Array<{
+    id: string;
+    name: string;
+    setPlan?: SetTarget[];
+  }>;
 };
 
 function isWorkoutExercise(exercise: Partial<WorkoutExercise>): exercise is WorkoutExercise {
@@ -202,8 +216,8 @@ function exerciseKey(exercise: Exercise) {
   return exercise.id;
 }
 
-function resultExerciseKey(result: SetResult) {
-  return result.exerciseId ?? result.exerciseName;
+function resultOutcomeKey(result: SetResult) {
+  return result.movementId ?? result.exerciseId ?? result.exerciseName;
 }
 
 function isWarmupKey(key: string, workout: Exercise[]) {
@@ -214,9 +228,26 @@ function isWarmupKey(key: string, workout: Exercise[]) {
 function profileWeight(
   userProfiles: Record<string, Record<string, number>>,
   person: string,
-  exercise: Exercise
+  exercise: Exercise,
+  movement?: { id: string } | null
 ) {
-  return userProfiles[person]?.[exercise.id] ?? userProfiles[person]?.[exercise.name] ?? 0;
+  return userProfiles[person]?.[movement?.id ?? ""] ?? userProfiles[person]?.[exercise.id] ?? userProfiles[person]?.[exercise.name] ?? 0;
+}
+
+function findExerciseAndMovement(workout: Exercise[], resultKey: string) {
+  for (const exercise of workout) {
+    if (exercise.id === resultKey || exercise.name === resultKey) {
+      return { exercise, movement: null };
+    }
+
+    const movement = exercise.movements?.find((movement) => movement.id === resultKey || movement.name === resultKey);
+
+    if (movement) {
+      return { exercise, movement };
+    }
+  }
+
+  return { exercise: null, movement: null };
 }
 
 export function calculateExerciseOutcomes(
@@ -231,7 +262,7 @@ export function calculateExerciseOutcomes(
   const groupedResults = new Map<string, Map<string, SetResult[]>>();
 
   for (const result of results) {
-    const key = resultExerciseKey(result);
+    const key = resultOutcomeKey(result);
 
     if (isWarmupKey(key, workout)) continue;
 
@@ -254,8 +285,8 @@ export function calculateExerciseOutcomes(
 
     for (const [exerciseResultKey, exerciseResults] of exercises) {
       // Find the exercise plan
-      const exercise = workout.find((e) => e.id === exerciseResultKey || e.name === exerciseResultKey);
-      const outcomeKey = exercise ? exerciseKey(exercise) : exerciseResultKey;
+      const { exercise, movement } = findExerciseAndMovement(workout, exerciseResultKey);
+      const outcomeKey = movement?.id ?? (exercise ? exerciseKey(exercise) : exerciseResultKey);
 
       if (!exercise) {
         outcomes[person][outcomeKey] = "neutral";
@@ -288,7 +319,7 @@ export function calculateExerciseOutcomes(
       );
 
       // Base weight for this person/exercise
-      const baseWeight = profileWeight(userProfiles, person, exercise);
+      const baseWeight = profileWeight(userProfiles, person, exercise, movement);
 
       let isExact = true;
       let hasUp = false;
@@ -296,7 +327,8 @@ export function calculateExerciseOutcomes(
 
       for (let i = 0; i < sortedResults.length; i++) {
         const result = sortedResults[i];
-        const planned = exercise.setPlan[i];
+        const setPlan = movement?.setPlan ?? exercise.setPlan;
+        const planned = setPlan[i];
 
         if (!planned) {
           isExact = false;
@@ -307,7 +339,7 @@ export function calculateExerciseOutcomes(
 
         const plannedReps =
           strategy === "straight"
-            ? exercise.setPlan[0].reps
+            ? setPlan[0].reps
             : planned.reps;
 
         const plannedWeight =

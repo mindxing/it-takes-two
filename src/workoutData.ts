@@ -7,15 +7,27 @@ export type SetTarget = {
 
 export type Person = "Victoria" | "Mike";
 
+export type Movement = {
+  id: string;
+  name: string;
+  defaultReps?: number;
+  defaultWeight: Record<Person, number>;
+  setPlan?: SetTarget[];
+  reps?: string;
+  notes?: string;
+};
+
 export type Exercise = {
   id: string;
   name: string;
+  type?: "single" | "compound";
   sets: number;
   reps: string;
   defaultReps: number;
   defaultWeight: Record<Person, number>;
   setPlan: SetTarget[];
   notes?: string;
+  movements?: Movement[];
 };
 
 const standardPyramid: SetTarget[] = [
