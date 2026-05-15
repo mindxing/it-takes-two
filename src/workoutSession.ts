@@ -78,8 +78,8 @@ export async function loadWorkoutPlan(fallbackWorkout: WorkoutExercise[]): Promi
 
   const fallbackById = new Map(fallbackWorkout.map((exercise) => [exercise.id, exercise]));
   const planItems: Array<Partial<WorkoutExercise> & { exerciseId?: string; active?: boolean }> =
-    plan.items ??
     plan.exerciseIds?.map((exerciseId) => ({ exerciseId })) ??
+    plan.items ??
     [];
 
   if (planItems.length === 0) {

@@ -127,6 +127,29 @@ export const workout: Exercise[] = [
     setPlan: straightSets,
   },
   {
+    id: "thigh_machine",
+    name: "Inner / Outer Thigh Machine",
+    type: "compound",
+    sets: 3,
+    reps: "10â€“15",
+    defaultReps: 12,
+    defaultWeight: { Victoria: 0, Mike: 0 },
+    notes: "Do inner then outer before switching people",
+    setPlan: smallStepPyramid,
+    movements: [
+      {
+        id: "thigh_machine_inner",
+        name: "Inner Thigh",
+        defaultWeight: { Victoria: 50, Mike: 55 },
+      },
+      {
+        id: "thigh_machine_outer",
+        name: "Outer Thigh",
+        defaultWeight: { Victoria: 65, Mike: 75 },
+      },
+    ],
+  },
+  {
     id: "dumbbell_romanian_deadlift",
     name: "Dumbbell Romanian Deadlift",
     sets: 3,

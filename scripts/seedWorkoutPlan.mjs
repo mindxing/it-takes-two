@@ -12,21 +12,69 @@ const exerciseIds = [
   "bicep_curl_machine",
   "tricep_pushdown",
   "abs",
-  "dumbbell_romanian_deadlift",
+  "thigh_machine",
 ];
 
 const exercises = {
-  warm_up: { active: true, name: "Warm-up" },
-  leg_press: { active: true, name: "Leg Press" },
-  chest_press_machine: { active: true, name: "Chest Press Machine" },
-  seated_row_machine: { active: true, name: "Seated Row Machine" },
-  glute_machine: { active: true, name: "Glute Machine" },
-  bicep_curl_machine: { active: true, name: "Bicep Curl Machine" },
-  tricep_pushdown: { active: true, name: "Tricep Pushdown" },
-  abs: { active: true, name: "Abs" },
+  warm_up: { active: true, type: "single", name: "Warm-up" },
+  leg_press: { active: true, type: "single", name: "Leg Press" },
+  chest_press_machine: {
+    active: true,
+    type: "single",
+    name: "Chest Press Machine",
+  },
+  seated_row_machine: {
+    active: true,
+    type: "single",
+    name: "Seated Row Machine",
+  },
+  glute_machine: { active: true, type: "single", name: "Glute Machine" },
+  bicep_curl_machine: {
+    active: true,
+    type: "single",
+    name: "Bicep Curl Machine",
+  },
+  tricep_pushdown: {
+    active: true,
+    type: "single",
+    name: "Tricep Pushdown",
+  },
+  abs: { active: true, type: "single", name: "Abs" },
+  thigh_machine: {
+    active: true,
+    type: "compound",
+    name: "Inner / Outer Thigh Machine",
+    notes: "Do inner then outer before switching people",
+    movements: [
+      {
+        id: "thigh_machine_inner",
+        name: "Inner Thigh",
+      },
+      {
+        id: "thigh_machine_outer",
+        name: "Outer Thigh",
+      },
+    ],
+  },
   dumbbell_romanian_deadlift: {
     active: true,
+    type: "single",
     name: "Dumbbell Romanian Deadlift",
+  },
+};
+
+const userProfileUpdates = {
+  Mike: {
+    weights: {
+      thigh_machine_inner: 55,
+      thigh_machine_outer: 75,
+    },
+  },
+  Victoria: {
+    weights: {
+      thigh_machine_inner: 50,
+      thigh_machine_outer: 65,
+    },
   },
 };
 
@@ -89,6 +137,8 @@ async function main() {
     console.log(JSON.stringify(workoutPlan, null, 2));
     console.log("Dry run: would write exercises/*");
     console.log(JSON.stringify(exercises, null, 2));
+    console.log("Dry run: would merge userProfiles/*");
+    console.log(JSON.stringify(userProfileUpdates, null, 2));
     return;
   }
 
@@ -101,6 +151,11 @@ async function main() {
   for (const [exerciseId, exercise] of Object.entries(exercises)) {
     await setDoc(doc(db, "exercises", exerciseId), exercise);
     console.log(`Wrote exercises/${exerciseId}`);
+  }
+
+  for (const [person, profileUpdate] of Object.entries(userProfileUpdates)) {
+    await setDoc(doc(db, "userProfiles", person), profileUpdate, { merge: true });
+    console.log(`Merged userProfiles/${person}`);
   }
 
   await deleteApp(app);

@@ -190,6 +190,7 @@ function App() {
   const [pastSession, setPastSession] = useState<WorkoutSession | null>(null);
   const [warmupSeconds, setWarmupSeconds] = useState(0);
   const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
+  const [workoutPlanLoaded, setWorkoutPlanLoaded] = useState(false);
   const sessionRef = useRef(session);
   const activeRemoteSessionRef = useRef<WorkoutSession | null>(null);
   const viewingPastRef = useRef(viewingPast);
@@ -356,10 +357,14 @@ function App() {
 
   useEffect(() => {
     loadWorkoutPlan(workout)
-      .then(setBaseWorkout)
+      .then((loadedWorkout) => {
+        setBaseWorkout(loadedWorkout);
+        setWorkoutPlanLoaded(true);
+      })
       .catch((error) => {
         console.error("Failed to load workout plan, using local fallback:", error);
         setBaseWorkout(workout);
+        setWorkoutPlanLoaded(true);
       });
   }, []);
 
@@ -752,9 +757,9 @@ function App() {
 
           <button
             className="primary-button"
-            disabled={pendingAction === "start"}
+            disabled={pendingAction === "start" || !workoutPlanLoaded}
             onClick={async () => {
-              if (pendingAction === "start") return;
+              if (pendingAction === "start" || !workoutPlanLoaded) return;
 
               setPendingAction("start");
 
@@ -795,6 +800,7 @@ function App() {
                   ...sessionRef.current,
                   started: true,
                   status: "active" as const,
+                  reorderedWorkout: baseWorkout,
                 };
 
                 await commitSession(newSession, "start");
@@ -805,7 +811,7 @@ function App() {
               }
             }}
           >
-            {activeRemoteSession ? "Join Workout" : "Start Workout"}
+            {!workoutPlanLoaded ? "Loading Workout..." : activeRemoteSession ? "Join Workout" : "Start Workout"}
           </button>
 
           {completedWorkouts.length > 0 && (
