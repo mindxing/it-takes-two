@@ -15,3 +15,9 @@ const app = initializeApp(firebaseConfig);
 
 export const db = getFirestore(app);
 
+const collectionSuffix = import.meta.env.VITE_FIRESTORE_COLLECTION_SUFFIX ?? "";
+
+export function collectionName(name: string) {
+  return `${name}${collectionSuffix}`;
+}
+

@@ -1,4 +1,4 @@
-import { db } from "./firebase";
+import { collectionName, db } from "./firebase";
 import { addDoc, collection, getDocs, orderBy, query, doc, onSnapshot, setDoc, getDoc } from "firebase/firestore";
 import type { Person, Exercise as WorkoutExercise } from "./workoutData";
 
@@ -31,13 +31,13 @@ export function saveWorkoutSession(session: unknown) {
     prepared.createdAt = now;
   }
 
-  return setDoc(doc(db, "workoutSessions", demoSessionId), prepared, { merge: true });
+  return setDoc(doc(db, collectionName("workoutSessions"), demoSessionId), prepared, { merge: true });
 }
 
 export function listenToWorkoutSession(
   onSessionChange: (session: unknown) => void
 ) {
-  return onSnapshot(doc(db, "workoutSessions", demoSessionId), (snapshot) => {
+  return onSnapshot(doc(db, collectionName("workoutSessions"), demoSessionId), (snapshot) => {
     if (snapshot.exists()) {
       onSessionChange(snapshot.data());
     }
@@ -45,7 +45,7 @@ export function listenToWorkoutSession(
 }
 
 export async function loadCurrentWorkoutSession() {
-  const snapshot = await getDoc(doc(db, "workoutSessions", demoSessionId));
+  const snapshot = await getDoc(doc(db, collectionName("workoutSessions"), demoSessionId));
   return snapshot.exists() ? snapshot.data() : null;
 }
 
@@ -56,11 +56,11 @@ export function saveCompletedWorkoutSummary(summary: {
   exerciseOutcomes?: Record<string, Record<string, "exact" | "up" | "down" | "neutral">>;
   results: SetResult[];
 }) {
-  return addDoc(collection(db, "completedWorkouts"), summary);
+  return addDoc(collection(db, collectionName("completedWorkouts")), summary);
 }
 
 export async function loadWorkoutPlan(fallbackWorkout: WorkoutExercise[]): Promise<WorkoutExercise[]> {
-  const planDoc = await getDoc(doc(db, "workoutPlans", "default"));
+  const planDoc = await getDoc(doc(db, collectionName("workoutPlans"), "default"));
 
   if (!planDoc.exists()) {
     return fallbackWorkout;
@@ -94,7 +94,7 @@ export async function loadWorkoutPlan(fallbackWorkout: WorkoutExercise[]): Promi
 
         if (!exerciseId) return null;
 
-        const exerciseDoc = await getDoc(doc(db, "exercises", exerciseId));
+        const exerciseDoc = await getDoc(doc(db, collectionName("exercises"), exerciseId));
         const exerciseData = exerciseDoc.exists()
           ? (exerciseDoc.data() as Partial<WorkoutExercise> & { active?: boolean })
           : {};
@@ -132,7 +132,7 @@ export type CompletedWorkoutSummary = {
 
 export async function loadCompletedWorkoutSummaries() {
   const q = query(
-    collection(db, "completedWorkouts"),
+    collection(db, collectionName("completedWorkouts")),
     orderBy("completedAt", "asc")
   );
 
@@ -149,7 +149,7 @@ export type UserWeights = Record<string, number>;
 export async function loadUserProfiles(defaults: Record<string, UserWeights>): Promise<Record<string, UserWeights>> {
   const profiles: Record<string, UserWeights> = {};
 
-  const mikeDoc = await getDoc(doc(db, "userProfiles", "Mike"));
+  const mikeDoc = await getDoc(doc(db, collectionName("userProfiles"), "Mike"));
   if (mikeDoc.exists()) {
     profiles.Mike = mikeDoc.data().weights || {};
   } else {
@@ -157,7 +157,7 @@ export async function loadUserProfiles(defaults: Record<string, UserWeights>): P
     profiles.Mike = defaults.Mike;
   }
 
-  const victoriaDoc = await getDoc(doc(db, "userProfiles", "Victoria"));
+  const victoriaDoc = await getDoc(doc(db, collectionName("userProfiles"), "Victoria"));
   if (victoriaDoc.exists()) {
     profiles.Victoria = victoriaDoc.data().weights || {};
   } else {
@@ -169,7 +169,7 @@ export async function loadUserProfiles(defaults: Record<string, UserWeights>): P
 }
 
 export function saveUserProfile(person: string, weights: UserWeights) {
-  return setDoc(doc(db, "userProfiles", person), { weights });
+  return setDoc(doc(db, collectionName("userProfiles"), person), { weights });
 }
 
 export type SetResult = {

@@ -119,6 +119,22 @@ function requireEnv(env, key) {
   return value;
 }
 
+function readCollectionSuffix() {
+  const arg = process.argv.find((item) => item.startsWith("--collection-suffix="));
+
+  if (arg) {
+    return arg.slice("--collection-suffix=".length);
+  }
+
+  return process.env.VITE_FIRESTORE_COLLECTION_SUFFIX ?? "";
+}
+
+const collectionSuffix = readCollectionSuffix();
+
+function collectionName(name) {
+  return `${name}${collectionSuffix}`;
+}
+
 async function main() {
   const dryRun = process.argv.includes("--dry-run");
   const env = await loadEnv();
@@ -133,11 +149,11 @@ async function main() {
   };
 
   if (dryRun) {
-    console.log("Dry run: would write workoutPlans/default");
+    console.log(`Dry run: would write ${collectionName("workoutPlans")}/default`);
     console.log(JSON.stringify(workoutPlan, null, 2));
-    console.log("Dry run: would write exercises/*");
+    console.log(`Dry run: would write ${collectionName("exercises")}/*`);
     console.log(JSON.stringify(exercises, null, 2));
-    console.log("Dry run: would merge userProfiles/*");
+    console.log(`Dry run: would merge ${collectionName("userProfiles")}/*`);
     console.log(JSON.stringify(userProfileUpdates, null, 2));
     return;
   }
@@ -145,17 +161,17 @@ async function main() {
   const app = initializeApp(firebaseConfig);
   const db = getFirestore(app);
 
-  await setDoc(doc(db, "workoutPlans", "default"), workoutPlan);
-  console.log("Wrote workoutPlans/default");
+  await setDoc(doc(db, collectionName("workoutPlans"), "default"), workoutPlan);
+  console.log(`Wrote ${collectionName("workoutPlans")}/default`);
 
   for (const [exerciseId, exercise] of Object.entries(exercises)) {
-    await setDoc(doc(db, "exercises", exerciseId), exercise);
-    console.log(`Wrote exercises/${exerciseId}`);
+    await setDoc(doc(db, collectionName("exercises"), exerciseId), exercise);
+    console.log(`Wrote ${collectionName("exercises")}/${exerciseId}`);
   }
 
   for (const [person, profileUpdate] of Object.entries(userProfileUpdates)) {
-    await setDoc(doc(db, "userProfiles", person), profileUpdate, { merge: true });
-    console.log(`Merged userProfiles/${person}`);
+    await setDoc(doc(db, collectionName("userProfiles"), person), profileUpdate, { merge: true });
+    console.log(`Merged ${collectionName("userProfiles")}/${person}`);
   }
 
   await deleteApp(app);

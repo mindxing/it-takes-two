@@ -5,10 +5,16 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:tmp": "vite --mode tmp",
     "build": "tsc -b && vite build",
+    "build:tmp": "tsc -b && vite build --mode tmp",
     "lint": "eslint .",
     "preview": "vite preview",
+    "preview:tmp": "npm run build:tmp && vite preview",
+    "deploy": "npm run build && firebase deploy --only hosting",
+    "deploy:tmp-preview": "npm run build:tmp && firebase hosting:channel:deploy sync-dev",
     "seed:workout-plan": "node scripts/seedWorkoutPlan.mjs",
+    "seed:workout-plan:tmp": "node scripts/seedWorkoutPlan.mjs --collection-suffix=_tmp",
     "version:patch": "npm version patch --no-git-tag-version"
   },
   "dependencies": {
