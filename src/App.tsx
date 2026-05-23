@@ -2,7 +2,7 @@ import { useEffect, useState, useRef } from "react";
 import "./App.css";
 import { people, workout, type Person, type Exercise } from "./workoutData";
 import { listenToWorkoutSession, loadCurrentWorkoutSession, saveWorkoutSession } from "./workoutSession";
-import { saveCompletedWorkoutSummary, loadCompletedWorkoutSummaries, loadUserProfiles, saveUserProfile, loadWorkoutPlan, calculateExerciseOutcomes, calculateProgressedUserProfilesFromHistory, type SetResult, type ExerciseOutcomes } from "./workoutSession";
+import { saveCompletedWorkoutSummary, loadCompletedWorkoutSummaries, loadUserProfileSettings, loadWorkoutPlan, calculateExerciseOutcomes, type SetResult, type ExerciseOutcomes } from "./workoutSession";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 
 declare const __APP_VERSION__: string;
@@ -57,7 +57,7 @@ const defaultUserProfiles: Record<Person, Record<string, number>> = {
   },
 };
 
-const userStrategies: Record<Person, WeightStrategy> = {
+const defaultUserStrategies: Record<Person, WeightStrategy> = {
   Mike: "pyramid",
   Victoria: "straight",
 };
@@ -186,6 +186,7 @@ function App() {
   const [showDetails, setShowDetails] = useState(false);
   const [completedWorkouts, setCompletedWorkouts] = useState<CompletedWorkout[]>([]);
   const [userProfiles, setUserProfiles] = useState<Record<Person, Record<string, number>>>(defaultUserProfiles);
+  const [userStrategies, setUserStrategies] = useState<Record<Person, WeightStrategy>>(defaultUserStrategies);
   const [viewingPast, setViewingPast] = useState(false);
   const [pastSession, setPastSession] = useState<WorkoutSession | null>(null);
   const [warmupSeconds, setWarmupSeconds] = useState(0);
@@ -369,10 +370,14 @@ function App() {
   }, []);
 
   useEffect(() => {
-    loadUserProfiles(defaultUserProfiles).then((profiles) => {
+    loadUserProfileSettings(defaultUserProfiles).then(({ weights, progressionStrategies }) => {
       setUserProfiles({
-        Mike: { ...defaultUserProfiles.Mike, ...profiles.Mike },
-        Victoria: { ...defaultUserProfiles.Victoria, ...profiles.Victoria },
+        Mike: { ...defaultUserProfiles.Mike, ...weights.Mike },
+        Victoria: { ...defaultUserProfiles.Victoria, ...weights.Victoria },
+      });
+      setUserStrategies({
+        Mike: progressionStrategies.Mike ?? defaultUserStrategies.Mike,
+        Victoria: progressionStrategies.Victoria ?? defaultUserStrategies.Victoria,
       });
     });
   }, []);
@@ -768,36 +773,8 @@ function App() {
                   return;
                 }
 
-                // Calculate weight progression based on history
-                const { updatedProfiles } = calculateProgressedUserProfilesFromHistory(
-                  userProfiles,
-                  baseWorkout,
-                  completedWorkouts
-                );
-
-                // If weights changed, update state and save to Firestore
-                let profilesChanged = false;
-                for (const person of ["Mike", "Victoria"] as const) {
-                  for (const exercise of baseWorkout) {
-                    const key = exerciseKey(exercise);
-                    const oldWeight = getProfileWeight(userProfiles, person, exercise);
-                    const newWeight = updatedProfiles[person][key] ?? updatedProfiles[person][exercise.name] ?? 0;
-                    if (oldWeight !== newWeight) {
-                      profilesChanged = true;
-                      break;
-                    }
-                  }
-                  if (profilesChanged) break;
-                }
-
-                if (profilesChanged) {
-                  setUserProfiles(updatedProfiles);
-                  await saveUserProfile("Mike", updatedProfiles.Mike);
-                  await saveUserProfile("Victoria", updatedProfiles.Victoria);
-                }
-
                 const newSession = {
-                  ...sessionRef.current,
+                  ...initialSession,
                   started: true,
                   status: "active" as const,
                   reorderedWorkout: baseWorkout,

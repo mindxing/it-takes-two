@@ -32,14 +32,14 @@ Open the local URL Vite prints, usually:
 http://localhost:5173
 ```
 
-For sync/database redesign work, run against the `_tmp` Firestore collections:
+For sync/database redesign work, run against the `tmp_` Firestore collections:
 
 ```bash
 npm run dev:tmp
 ```
 
-The tmp script automatically uses collection names like `workoutSessions_tmp`,
-`workoutPlans_tmp`, and `userProfiles_tmp`.
+The tmp script automatically uses collection names like `tmp_workoutSessions`,
+`tmp_workoutPlans`, and `tmp_userProfiles`.
 
 ## Build
 
@@ -49,7 +49,7 @@ Create a production build in `dist` using the normal production collections:
 npm run build
 ```
 
-Create a production-style build using the `_tmp` Firestore collections:
+Create a production-style build using the `tmp_` Firestore collections:
 
 ```bash
 npm run build:tmp
@@ -69,7 +69,7 @@ Open the local URL Vite prints, usually:
 http://localhost:4173
 ```
 
-Build and preview the `_tmp` version locally:
+Build and preview the `tmp_` version locally:
 
 ```bash
 npm run preview:tmp
@@ -90,7 +90,7 @@ Deploy the normal production app:
 npm run deploy
 ```
 
-Deploy the `_tmp` sync-work version to a Firebase Hosting preview channel:
+Deploy the `tmp_` sync-work version to a Firebase Hosting preview channel:
 
 ```bash
 npm run deploy:tmp-preview
@@ -104,7 +104,7 @@ Seed the normal production collections:
 npm run seed:workout-plan
 ```
 
-Seed the `_tmp` collections for sync/database redesign work:
+Seed the `tmp_` collections for sync/database redesign work:
 
 ```bash
 npm run seed:workout-plan:tmp

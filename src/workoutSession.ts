@@ -145,27 +145,48 @@ export async function loadCompletedWorkoutSummaries() {
 }
 
 export type UserWeights = Record<string, number>;
+export type UserProgressionStrategy = "pyramid" | "straight";
+export type UserProfileSettings = {
+  weights: Record<string, UserWeights>;
+  progressionStrategies: Record<string, UserProgressionStrategy>;
+};
+
+function isUserProgressionStrategy(value: unknown): value is UserProgressionStrategy {
+  return value === "pyramid" || value === "straight";
+}
 
 export async function loadUserProfiles(defaults: Record<string, UserWeights>): Promise<Record<string, UserWeights>> {
-  const profiles: Record<string, UserWeights> = {};
+  const settings = await loadUserProfileSettings(defaults);
+  return settings.weights;
+}
 
-  const mikeDoc = await getDoc(doc(db, collectionName("userProfiles"), "Mike"));
-  if (mikeDoc.exists()) {
-    profiles.Mike = mikeDoc.data().weights || {};
-  } else {
-    await saveUserProfile("Mike", defaults.Mike);
-    profiles.Mike = defaults.Mike;
+export async function loadUserProfileSettings(defaults: Record<string, UserWeights>): Promise<UserProfileSettings> {
+  const weights: Record<string, UserWeights> = {};
+  const progressionStrategies: Record<string, UserProgressionStrategy> = {};
+
+  for (const person of Object.keys(defaults)) {
+    const profileDoc = await getDoc(doc(db, collectionName("userProfiles"), person));
+
+    if (profileDoc.exists()) {
+      const profile = profileDoc.data() as {
+        weights?: UserWeights;
+        progressionStrategy?: unknown;
+      };
+
+      weights[person] = profile.weights || {};
+      progressionStrategies[person] = isUserProgressionStrategy(profile.progressionStrategy)
+        ? profile.progressionStrategy
+        : person === "Victoria"
+          ? "straight"
+          : "pyramid";
+    } else {
+      await saveUserProfile(person, defaults[person]);
+      weights[person] = defaults[person];
+      progressionStrategies[person] = person === "Victoria" ? "straight" : "pyramid";
+    }
   }
 
-  const victoriaDoc = await getDoc(doc(db, collectionName("userProfiles"), "Victoria"));
-  if (victoriaDoc.exists()) {
-    profiles.Victoria = victoriaDoc.data().weights || {};
-  } else {
-    await saveUserProfile("Victoria", defaults.Victoria);
-    profiles.Victoria = defaults.Victoria;
-  }
-
-  return profiles;
+  return { weights, progressionStrategies };
 }
 
 export function saveUserProfile(person: string, weights: UserWeights) {
@@ -207,7 +228,6 @@ function isWorkoutExercise(exercise: Partial<WorkoutExercise>): exercise is Work
     typeof exercise.sets === "number" &&
     typeof exercise.reps === "string" &&
     typeof exercise.defaultReps === "number" &&
-    !!exercise.defaultWeight &&
     Array.isArray(exercise.setPlan)
   );
 }

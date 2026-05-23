@@ -15,36 +15,108 @@ const exerciseIds = [
   "thigh_machine",
 ];
 
+const standardPyramid = [
+  { reps: 12, weightOffset: -10 },
+  { reps: 10, weightOffset: 0 },
+  { reps: 8, weightOffset: 10 },
+];
+
+const smallStepPyramid = [
+  { reps: 15, weightOffset: -5 },
+  { reps: 12, weightOffset: 0 },
+  { reps: 10, weightOffset: 5 },
+];
+
+const straightSets = [
+  { reps: 10, weightOffset: 0 },
+  { reps: 10, weightOffset: 0 },
+  { reps: 10, weightOffset: 0 },
+];
+
 const exercises = {
-  warm_up: { active: true, type: "single", name: "Warm-up" },
-  leg_press: { active: true, type: "single", name: "Leg Press" },
+  warm_up: {
+    active: true,
+    type: "single",
+    name: "Warm-up",
+    sets: 1,
+    reps: "5-8 min",
+    defaultReps: 0,
+    notes: "Treadmill or elliptical",
+    setPlan: [{ reps: 0, weightOffset: 0 }],
+  },
+  leg_press: {
+    active: true,
+    type: "single",
+    name: "Leg Press",
+    sets: 3,
+    reps: "8-12",
+    defaultReps: 10,
+    setPlan: standardPyramid,
+  },
   chest_press_machine: {
     active: true,
     type: "single",
     name: "Chest Press Machine",
+    sets: 3,
+    reps: "8-12",
+    defaultReps: 10,
+    setPlan: standardPyramid,
   },
   seated_row_machine: {
     active: true,
     type: "single",
     name: "Seated Row Machine",
+    sets: 3,
+    reps: "8-12",
+    defaultReps: 10,
+    setPlan: standardPyramid,
   },
-  glute_machine: { active: true, type: "single", name: "Glute Machine" },
+  glute_machine: {
+    active: true,
+    type: "single",
+    name: "Glute Machine",
+    sets: 3,
+    reps: "10-15",
+    defaultReps: 12,
+    notes: "Kickback or abductor",
+    setPlan: smallStepPyramid,
+  },
   bicep_curl_machine: {
     active: true,
     type: "single",
     name: "Bicep Curl Machine",
+    sets: 3,
+    reps: "10-15",
+    defaultReps: 12,
+    setPlan: smallStepPyramid,
   },
   tricep_pushdown: {
     active: true,
     type: "single",
     name: "Tricep Pushdown",
+    sets: 3,
+    reps: "10-15",
+    defaultReps: 12,
+    setPlan: smallStepPyramid,
   },
-  abs: { active: true, type: "single", name: "Abs" },
+  abs: {
+    active: true,
+    type: "single",
+    name: "Abs",
+    sets: 3,
+    reps: "Machine or 20-45s plank",
+    defaultReps: 12,
+    setPlan: straightSets,
+  },
   thigh_machine: {
     active: true,
     type: "compound",
     name: "Inner / Outer Thigh Machine",
+    sets: 3,
+    reps: "10-15",
+    defaultReps: 12,
     notes: "Do inner then outer before switching people",
+    setPlan: smallStepPyramid,
     movements: [
       {
         id: "thigh_machine_inner",
@@ -60,20 +132,51 @@ const exercises = {
     active: true,
     type: "single",
     name: "Dumbbell Romanian Deadlift",
+    sets: 3,
+    reps: "8-12",
+    defaultReps: 10,
+    notes: "RDL - hinge at hips, slight knee bend",
+    setPlan: standardPyramid,
   },
 };
 
-const userProfileUpdates = {
+const userProfiles = {
   Mike: {
+    id: "Mike",
+    displayName: "Mike",
+    progressionStrategy: "pyramid",
+    active: true,
     weights: {
+      warm_up: 0,
+      leg_press: 125,
+      chest_press_machine: 65,
+      seated_row_machine: 55,
+      glute_machine: 55,
+      bicep_curl_machine: 55,
+      tricep_pushdown: 55,
+      abs: 0,
       thigh_machine_inner: 55,
       thigh_machine_outer: 75,
+      dumbbell_romanian_deadlift: 35,
     },
   },
   Victoria: {
+    id: "Victoria",
+    displayName: "Victoria",
+    progressionStrategy: "straight",
+    active: true,
     weights: {
+      warm_up: 0,
+      leg_press: 95,
+      chest_press_machine: 25,
+      seated_row_machine: 35,
+      glute_machine: 50,
+      bicep_curl_machine: 10,
+      tricep_pushdown: 30,
+      abs: 0,
       thigh_machine_inner: 50,
       thigh_machine_outer: 65,
+      dumbbell_romanian_deadlift: 20,
     },
   },
 };
@@ -119,20 +222,20 @@ function requireEnv(env, key) {
   return value;
 }
 
-function readCollectionSuffix() {
-  const arg = process.argv.find((item) => item.startsWith("--collection-suffix="));
+function readCollectionPrefix() {
+  const prefixArg = process.argv.find((item) => item.startsWith("--collection-prefix="));
 
-  if (arg) {
-    return arg.slice("--collection-suffix=".length);
+  if (prefixArg) {
+    return prefixArg.slice("--collection-prefix=".length);
   }
 
-  return process.env.VITE_FIRESTORE_COLLECTION_SUFFIX ?? "";
+  return process.env.VITE_FIRESTORE_COLLECTION_PREFIX ?? "";
 }
 
-const collectionSuffix = readCollectionSuffix();
+const collectionPrefix = readCollectionPrefix();
 
 function collectionName(name) {
-  return `${name}${collectionSuffix}`;
+  return `${collectionPrefix}${name}`;
 }
 
 async function main() {
@@ -153,8 +256,8 @@ async function main() {
     console.log(JSON.stringify(workoutPlan, null, 2));
     console.log(`Dry run: would write ${collectionName("exercises")}/*`);
     console.log(JSON.stringify(exercises, null, 2));
-    console.log(`Dry run: would merge ${collectionName("userProfiles")}/*`);
-    console.log(JSON.stringify(userProfileUpdates, null, 2));
+    console.log(`Dry run: would write ${collectionName("userProfiles")}/*`);
+    console.log(JSON.stringify(userProfiles, null, 2));
     return;
   }
 
@@ -169,9 +272,9 @@ async function main() {
     console.log(`Wrote ${collectionName("exercises")}/${exerciseId}`);
   }
 
-  for (const [person, profileUpdate] of Object.entries(userProfileUpdates)) {
-    await setDoc(doc(db, collectionName("userProfiles"), person), profileUpdate, { merge: true });
-    console.log(`Merged ${collectionName("userProfiles")}/${person}`);
+  for (const [person, profileUpdate] of Object.entries(userProfiles)) {
+    await setDoc(doc(db, collectionName("userProfiles"), person), profileUpdate);
+    console.log(`Wrote ${collectionName("userProfiles")}/${person}`);
   }
 
   await deleteApp(app);
