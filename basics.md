@@ -39,7 +39,7 @@ npm run dev:tmp
 ```
 
 The tmp script automatically uses collection names like `tmp_workoutSessions`,
-`tmp_workoutPlans`, and `tmp_userProfiles`.
+`tmp_workoutPlans`, `tmp_userProfiles`, and `tmp_currentBaselines`.
 
 ## Build
 

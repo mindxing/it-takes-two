@@ -146,7 +146,19 @@ const userProfiles = {
     displayName: "Mike",
     progressionStrategy: "pyramid",
     active: true,
-    weights: {
+  },
+  Victoria: {
+    id: "Victoria",
+    displayName: "Victoria",
+    progressionStrategy: "straight",
+    active: true,
+  },
+};
+
+const currentBaselines = {
+  Mike: {
+    userId: "Mike",
+    baselines: {
       warm_up: 0,
       leg_press: 125,
       chest_press_machine: 65,
@@ -161,11 +173,8 @@ const userProfiles = {
     },
   },
   Victoria: {
-    id: "Victoria",
-    displayName: "Victoria",
-    progressionStrategy: "straight",
-    active: true,
-    weights: {
+    userId: "Victoria",
+    baselines: {
       warm_up: 0,
       leg_press: 95,
       chest_press_machine: 25,
@@ -258,6 +267,8 @@ async function main() {
     console.log(JSON.stringify(exercises, null, 2));
     console.log(`Dry run: would write ${collectionName("userProfiles")}/*`);
     console.log(JSON.stringify(userProfiles, null, 2));
+    console.log(`Dry run: would write ${collectionName("currentBaselines")}/*`);
+    console.log(JSON.stringify(currentBaselines, null, 2));
     return;
   }
 
@@ -275,6 +286,11 @@ async function main() {
   for (const [person, profileUpdate] of Object.entries(userProfiles)) {
     await setDoc(doc(db, collectionName("userProfiles"), person), profileUpdate);
     console.log(`Wrote ${collectionName("userProfiles")}/${person}`);
+  }
+
+  for (const [person, baselineUpdate] of Object.entries(currentBaselines)) {
+    await setDoc(doc(db, collectionName("currentBaselines"), person), baselineUpdate);
+    console.log(`Wrote ${collectionName("currentBaselines")}/${person}`);
   }
 
   await deleteApp(app);

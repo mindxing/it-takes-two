@@ -147,21 +147,61 @@ export async function loadCompletedWorkoutSummaries() {
 export type UserWeights = Record<string, number>;
 export type UserProgressionStrategy = "pyramid" | "straight";
 export type UserProfileSettings = {
-  weights: Record<string, UserWeights>;
   progressionStrategies: Record<string, UserProgressionStrategy>;
 };
+type StoredBaselineValue = number | { weight?: unknown };
 
 function isUserProgressionStrategy(value: unknown): value is UserProgressionStrategy {
   return value === "pyramid" || value === "straight";
 }
 
 export async function loadUserProfiles(defaults: Record<string, UserWeights>): Promise<Record<string, UserWeights>> {
-  const settings = await loadUserProfileSettings(defaults);
-  return settings.weights;
+  return loadCurrentBaselines(defaults);
 }
 
-export async function loadUserProfileSettings(defaults: Record<string, UserWeights>): Promise<UserProfileSettings> {
+function defaultProgressionStrategy(person: string): UserProgressionStrategy {
+  return person === "Victoria" ? "straight" : "pyramid";
+}
+
+function parseStoredBaselines(baselines: Record<string, StoredBaselineValue> | undefined): UserWeights {
+  const weights: UserWeights = {};
+
+  if (!baselines) {
+    return weights;
+  }
+
+  for (const [exerciseId, baseline] of Object.entries(baselines)) {
+    if (typeof baseline === "number") {
+      weights[exerciseId] = baseline;
+    } else if (baseline && typeof baseline.weight === "number") {
+      weights[exerciseId] = baseline.weight;
+    }
+  }
+
+  return weights;
+}
+
+export async function loadCurrentBaselines(defaults: Record<string, UserWeights>): Promise<Record<string, UserWeights>> {
   const weights: Record<string, UserWeights> = {};
+
+  for (const person of Object.keys(defaults)) {
+    const baselineDoc = await getDoc(doc(db, collectionName("currentBaselines"), person));
+
+    if (baselineDoc.exists()) {
+      const baselineData = baselineDoc.data() as {
+        baselines?: Record<string, StoredBaselineValue>;
+      };
+
+      weights[person] = parseStoredBaselines(baselineData.baselines);
+    } else {
+      weights[person] = {};
+    }
+  }
+
+  return weights;
+}
+
+export async function loadUserProfileSettings(defaults: Record<string, UserProgressionStrategy>): Promise<UserProfileSettings> {
   const progressionStrategies: Record<string, UserProgressionStrategy> = {};
 
   for (const person of Object.keys(defaults)) {
@@ -169,28 +209,26 @@ export async function loadUserProfileSettings(defaults: Record<string, UserWeigh
 
     if (profileDoc.exists()) {
       const profile = profileDoc.data() as {
-        weights?: UserWeights;
         progressionStrategy?: unknown;
       };
 
-      weights[person] = profile.weights || {};
       progressionStrategies[person] = isUserProgressionStrategy(profile.progressionStrategy)
         ? profile.progressionStrategy
-        : person === "Victoria"
-          ? "straight"
-          : "pyramid";
+        : defaults[person] ?? defaultProgressionStrategy(person);
     } else {
-      await saveUserProfile(person, defaults[person]);
-      weights[person] = defaults[person];
-      progressionStrategies[person] = person === "Victoria" ? "straight" : "pyramid";
+      progressionStrategies[person] = defaults[person] ?? defaultProgressionStrategy(person);
     }
   }
 
-  return { weights, progressionStrategies };
+  return { progressionStrategies };
+}
+
+export function saveCurrentBaselines(person: string, weights: UserWeights) {
+  return setDoc(doc(db, collectionName("currentBaselines"), person), { baselines: weights });
 }
 
 export function saveUserProfile(person: string, weights: UserWeights) {
-  return setDoc(doc(db, collectionName("userProfiles"), person), { weights });
+  return saveCurrentBaselines(person, weights);
 }
 
 export type SetResult = {

@@ -2,7 +2,7 @@ import { useEffect, useState, useRef } from "react";
 import "./App.css";
 import { people, workout, type Person, type Exercise } from "./workoutData";
 import { listenToWorkoutSession, loadCurrentWorkoutSession, saveWorkoutSession } from "./workoutSession";
-import { saveCompletedWorkoutSummary, loadCompletedWorkoutSummaries, loadUserProfileSettings, loadWorkoutPlan, calculateExerciseOutcomes, type SetResult, type ExerciseOutcomes } from "./workoutSession";
+import { saveCompletedWorkoutSummary, loadCompletedWorkoutSummaries, loadCurrentBaselines, loadUserProfileSettings, loadWorkoutPlan, calculateExerciseOutcomes, type SetResult, type ExerciseOutcomes } from "./workoutSession";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 
 declare const __APP_VERSION__: string;
@@ -370,7 +370,10 @@ function App() {
   }, []);
 
   useEffect(() => {
-    loadUserProfileSettings(defaultUserProfiles).then(({ weights, progressionStrategies }) => {
+    Promise.all([
+      loadCurrentBaselines(defaultUserProfiles),
+      loadUserProfileSettings(defaultUserStrategies),
+    ]).then(([weights, { progressionStrategies }]) => {
       setUserProfiles({
         Mike: { ...defaultUserProfiles.Mike, ...weights.Mike },
         Victoria: { ...defaultUserProfiles.Victoria, ...weights.Victoria },
