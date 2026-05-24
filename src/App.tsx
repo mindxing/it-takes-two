@@ -1,8 +1,8 @@
 import { useEffect, useState, useRef } from "react";
 import "./App.css";
 import { people, workout, type Person, type Exercise } from "./workoutData";
-import { listenToWorkoutSession, loadCurrentWorkoutSession, saveWorkoutSession } from "./workoutSession";
-import { finalizeCompletedWorkout, loadCompletedWorkoutSummaries, loadCurrentBaselineStates, loadUserProfileSettings, loadWorkoutPlan, calculateExerciseOutcomes, calculateProgressedUserProfilesFromHistory, type BaselineProgressionStrategy, type SetResult, type ExerciseOutcomes, type UserBaselines } from "./workoutSession";
+import { appendWorkoutEvent, listenToWorkoutEvents, listenToWorkoutSession, loadCurrentWorkoutSession } from "./workoutSession";
+import { finalizeCompletedWorkout, loadCompletedWorkoutSummaries, loadCurrentBaselineStates, loadUserProfileSettings, loadWorkoutPlan, calculateExerciseOutcomes, calculateProgressedUserProfilesFromHistory, type BaselineProgressionStrategy, type SetResult, type ExerciseOutcomes, type UserBaselines, type WorkoutEventType } from "./workoutSession";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 
 declare const __APP_VERSION__: string;
@@ -122,6 +122,7 @@ type WorkoutSession = {
   cancelledAt?: string;
   localRevision?: number;
   lastWriterId?: string;
+  eventSequence?: number;
 };
 
 type WorkoutProgressProps = {
@@ -318,6 +319,7 @@ function App() {
   const activeRemoteSessionRef = useRef<WorkoutSession | null>(null);
   const viewingPastRef = useRef(viewingPast);
   const latestLocalRevisionRef = useRef(0);
+  const latestEventSequenceRef = useRef(0);
   const pendingStepperSaveRef = useRef<number | null>(null);
   const pendingStepperSessionRef = useRef<WorkoutSession | null>(null);
   const clientIdRef = useRef(CLIENT_ID);
@@ -371,11 +373,22 @@ function App() {
     pendingStepperSessionRef.current = null;
   }
 
-  async function savePreparedSession(nextSession: WorkoutSession) {
-    await saveWorkoutSession(nextSession);
+  async function savePreparedSession(nextSession: WorkoutSession, eventType: WorkoutEventType = "updateSession") {
+    const actorId = nextSession.firstPerson
+      ? nextSession.exerciseOrder[nextSession.currentPersonIndex]
+      : undefined;
+
+    const event = await appendWorkoutEvent(eventType, {
+      sessionId: nextSession.sessionId,
+      actorId,
+      clientId: clientIdRef.current,
+      session: nextSession,
+    });
+
+    latestEventSequenceRef.current = Math.max(latestEventSequenceRef.current, event.sequence);
   }
 
-  async function commitSession(nextSession: WorkoutSession, action?: PendingAction) {
+  async function commitSession(nextSession: WorkoutSession, action?: PendingAction, eventType: WorkoutEventType = "updateSession") {
     clearPendingStepperSave();
 
     const prepared = prepareLocalSession(nextSession);
@@ -386,7 +399,7 @@ function App() {
     }
 
     try {
-      await savePreparedSession(prepared);
+      await savePreparedSession(prepared, eventType);
     } finally {
       if (action) {
         setPendingAction((current) => current === action ? null : current);
@@ -410,7 +423,7 @@ function App() {
 
       if (!sessionToSave) return;
 
-      savePreparedSession(sessionToSave).catch((error) => {
+      savePreparedSession(sessionToSave, "adjustSet").catch((error) => {
         console.error("Failed to save stepper update:", error);
       });
     }, 450);
@@ -430,10 +443,15 @@ function App() {
     const unsubscribe = listenToWorkoutSession((data) => {
       const incoming = data as WorkoutSession;
       const incomingRevision = incoming.localRevision ?? 0;
+      const incomingEventSequence = incoming.eventSequence ?? 0;
 
       latestLocalRevisionRef.current = Math.max(
         latestLocalRevisionRef.current,
         incomingRevision
+      );
+      latestEventSequenceRef.current = Math.max(
+        latestEventSequenceRef.current,
+        incomingEventSequence
       );
 
       const isActive = incoming.status === "active" && !incoming.complete;
@@ -468,6 +486,29 @@ function App() {
         if (incoming.status === "cancelled") {
           setLocalSession(initialSession);
         }
+      }
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    const unsubscribe = listenToWorkoutEvents((event) => {
+      if (event.sequence <= latestEventSequenceRef.current) return;
+
+      const eventSession = event.payload.session as WorkoutSession | undefined;
+
+      if (!eventSession) return;
+      if (sessionRef.current.sessionId && eventSession.sessionId !== sessionRef.current.sessionId) return;
+
+      latestEventSequenceRef.current = event.sequence;
+      latestLocalRevisionRef.current = Math.max(
+        latestLocalRevisionRef.current,
+        eventSession.localRevision ?? 0
+      );
+
+      if (!viewingPastRef.current) {
+        setLocalSession(eventSession);
       }
     });
 
@@ -551,7 +592,7 @@ function App() {
     activeRemoteSessionRef.current = null;
     setLocalSession(initialSession);
 
-    savePreparedSession(cancelledSession).catch((error) => {
+    savePreparedSession(cancelledSession, "cancelWorkout").catch((error) => {
       console.error("Failed to cancel workout:", error);
     });
   }
@@ -833,7 +874,7 @@ function App() {
       setLocalSession(prepareLocalSession(newSession));
       setPendingAction((current) => current === action ? null : current);
     } else {
-      await commitSession(newSession, action);
+    await commitSession(newSession, action, status === "skipped" ? "skipSet" : "completeSet");
     }
   }
 
@@ -1023,7 +1064,7 @@ function App() {
                   reorderedWorkout: baseWorkout,
                 };
 
-                await commitSession(newSession, "start");
+                await commitSession(newSession, "start", "startWorkout");
               } catch (error) {
                 console.error("Failed to save session:", error);
               } finally {

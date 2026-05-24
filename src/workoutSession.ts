@@ -17,6 +17,25 @@ export type {
 } from "./baselineProgression";
 
 export const demoSessionId = "demo";
+export type WorkoutEventType =
+  | "startWorkout"
+  | "updateSession"
+  | "adjustSet"
+  | "completeSet"
+  | "skipSet"
+  | "cancelWorkout"
+  | "completeWorkout";
+
+export type WorkoutEvent = {
+  id: string;
+  sequence: number;
+  type: WorkoutEventType;
+  sessionId?: string;
+  actorId?: string;
+  clientId?: string;
+  createdAt: string;
+  payload: Record<string, unknown>;
+};
 
 function removeUndefinedValues(value: unknown): unknown {
   if (Array.isArray(value)) {
@@ -46,6 +65,81 @@ export function saveWorkoutSession(session: unknown) {
   }
 
   return setDoc(doc(db, collectionName("workoutSessions"), demoSessionId), prepared, { merge: true });
+}
+
+export function appendWorkoutEvent(
+  type: WorkoutEventType,
+  event: {
+    sessionId?: string;
+    actorId?: string;
+    clientId?: string;
+    payload?: Record<string, unknown>;
+    session?: unknown;
+  }
+) {
+  const sessionRef = doc(db, collectionName("workoutSessions"), demoSessionId);
+  const now = new Date().toISOString();
+
+  return runTransaction(db, async (transaction) => {
+    const sessionSnapshot = await transaction.get(sessionRef);
+    const currentSequence = sessionSnapshot.exists()
+      ? Number(sessionSnapshot.data().eventSequence ?? 0)
+      : 0;
+    const sequence = currentSequence + 1;
+    const eventId = String(sequence).padStart(8, "0");
+    const eventPayload = removeUndefinedValues({
+      ...(event.payload ?? {}),
+      session: event.session,
+    }) as Record<string, unknown>;
+    const preparedSession = event.session
+      ? removeUndefinedValues({
+        ...(event.session as Record<string, unknown>),
+        eventSequence: sequence,
+        updatedAt: now,
+      }) as Record<string, unknown>
+      : null;
+
+    transaction.set(doc(collection(sessionRef, "events"), eventId), {
+      sequence,
+      type,
+      sessionId: event.sessionId,
+      actorId: event.actorId,
+      clientId: event.clientId,
+      createdAt: now,
+      payload: eventPayload,
+    });
+
+    if (preparedSession) {
+      if (!preparedSession.createdAt) {
+        preparedSession.createdAt = now;
+      }
+
+      transaction.set(sessionRef, preparedSession, { merge: true });
+    } else {
+      transaction.set(sessionRef, { eventSequence: sequence, updatedAt: now }, { merge: true });
+    }
+
+    return { sequence, eventId };
+  });
+}
+
+export function listenToWorkoutEvents(onEvent: (event: WorkoutEvent) => void) {
+  const eventsQuery = query(
+    collection(db, collectionName("workoutSessions"), demoSessionId, "events"),
+    orderBy("sequence", "asc")
+  );
+
+  return onSnapshot(eventsQuery, (snapshot) => {
+    snapshot.docChanges().forEach((change) => {
+      if (change.type !== "added") return;
+
+      const data = change.doc.data() as Omit<WorkoutEvent, "id">;
+      onEvent({
+        id: change.doc.id,
+        ...data,
+      });
+    });
+  });
 }
 
 export function listenToWorkoutSession(
@@ -314,9 +408,11 @@ export async function finalizeCompletedWorkout({
 
   return runTransaction(db, async (transaction) => {
     const completedSnapshot = await transaction.get(completedRef);
+    const sessionSnapshot = await transaction.get(sessionRef);
+    const sequence = (sessionSnapshot.exists() ? Number(sessionSnapshot.data().eventSequence ?? 0) : 0) + 1;
 
     if (completedSnapshot.exists()) {
-      transaction.set(sessionRef, preparedSession, { merge: true });
+      transaction.set(sessionRef, { ...preparedSession, eventSequence: sequence }, { merge: true });
       return { created: false };
     }
 
@@ -334,7 +430,16 @@ export async function finalizeCompletedWorkout({
       });
     }
 
-    transaction.set(sessionRef, preparedSession, { merge: true });
+    transaction.set(sessionRef, { ...preparedSession, eventSequence: sequence }, { merge: true });
+    transaction.set(doc(collection(sessionRef, "events"), String(sequence).padStart(8, "0")), {
+      type: "completeWorkout",
+      sequence,
+      sessionId,
+      createdAt: now,
+      payload: {
+        session: preparedSession,
+      },
+    });
 
     return { created: true };
   });
