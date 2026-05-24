@@ -9,6 +9,7 @@
     "build": "tsc -b && vite build",
     "build:tmp": "tsc -b && vite build --mode tmp",
     "lint": "eslint .",
+    "test:baseline": "node --experimental-strip-types scripts/testBaselineProgression.ts",
     "preview": "vite preview",
     "preview:tmp": "npm run build:tmp && vite preview",
     "deploy": "npm run build && firebase deploy --only hosting",

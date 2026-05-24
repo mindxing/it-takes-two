@@ -127,6 +127,76 @@ button:disabled {
   text-decoration: underline;
 }
 
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(17, 24, 39, 0.48);
+}
+
+.modal {
+  width: min(100%, 560px);
+  max-height: calc(100vh - 40px);
+  overflow: auto;
+  padding: 24px;
+  border-radius: 8px;
+  background: white;
+  color: #111827;
+  text-align: left;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.24);
+}
+
+.modal h2 {
+  margin: 0 0 16px;
+  font-size: 1.25rem;
+}
+
+.baseline-table {
+  width: 100%;
+  margin-bottom: 20px;
+  border-collapse: collapse;
+  font-size: 0.95rem;
+}
+
+.baseline-table th,
+.baseline-table td {
+  padding: 10px 8px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.baseline-table th {
+  color: #555;
+  font-size: 0.8rem;
+  text-align: left;
+}
+
+.baseline-table th:not(:first-child),
+.baseline-table td:not(:first-child) {
+  width: 72px;
+  text-align: center;
+}
+
+.baseline-change {
+  font-size: 1.1rem;
+  font-weight: 800;
+}
+
+.baseline-change.up {
+  color: #15803d;
+}
+
+.baseline-change.same {
+  color: #555;
+}
+
+.baseline-change.down {
+  color: #b91c1c;
+}
+
 * {
   box-sizing: border-box;
 }

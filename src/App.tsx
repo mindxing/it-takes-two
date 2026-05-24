@@ -2,7 +2,7 @@ import { useEffect, useState, useRef } from "react";
 import "./App.css";
 import { people, workout, type Person, type Exercise } from "./workoutData";
 import { listenToWorkoutSession, loadCurrentWorkoutSession, saveWorkoutSession } from "./workoutSession";
-import { saveCompletedWorkoutSummary, loadCompletedWorkoutSummaries, loadCurrentBaselines, loadUserProfileSettings, loadWorkoutPlan, calculateExerciseOutcomes, type SetResult, type ExerciseOutcomes } from "./workoutSession";
+import { saveCompletedWorkoutSummary, loadCompletedWorkoutSummaries, loadCurrentBaselineStates, loadUserProfileSettings, loadWorkoutPlan, calculateExerciseOutcomes, calculateProgressedUserProfilesFromHistory, saveCurrentBaselineStates, type BaselineProgressionStrategy, type SetResult, type ExerciseOutcomes, type UserBaselines } from "./workoutSession";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 
 declare const __APP_VERSION__: string;
@@ -57,9 +57,41 @@ const defaultUserProfiles: Record<Person, Record<string, number>> = {
   },
 };
 
+function baselineStatesFromWeights(weights: Record<Person, Record<string, number>>): Record<Person, UserBaselines> {
+  return {
+    Mike: Object.fromEntries(
+      Object.entries(weights.Mike).map(([exerciseId, weight]) => [exerciseId, { weight, successStreak: 0 }])
+    ),
+    Victoria: Object.fromEntries(
+      Object.entries(weights.Victoria).map(([exerciseId, weight]) => [exerciseId, { weight, successStreak: 0 }])
+    ),
+  };
+}
+
+function weightsFromBaselineStates(baselines: Record<Person, UserBaselines>) {
+  return {
+    Mike: Object.fromEntries(
+      Object.entries(baselines.Mike).map(([exerciseId, baseline]) => [exerciseId, baseline.weight])
+    ),
+    Victoria: Object.fromEntries(
+      Object.entries(baselines.Victoria).map(([exerciseId, baseline]) => [exerciseId, baseline.weight])
+    ),
+  } as Record<Person, Record<string, number>>;
+}
+
 const defaultUserStrategies: Record<Person, WeightStrategy> = {
   Mike: "pyramid",
   Victoria: "straight",
+};
+const defaultBaselineProgressionStrategies: Record<Person, BaselineProgressionStrategy> = {
+  Mike: "medium",
+  Victoria: "straight",
+};
+type BaselineChangeSymbol = "up" | "same" | "down";
+type BaselineChangeRow = {
+  id: string;
+  label: string;
+  changes: Record<Person, BaselineChangeSymbol>;
 };
 
 type WorkoutSession = {
@@ -102,6 +134,36 @@ function activeMovement(exercise: Exercise, movementIndex = 0) {
 
 function activeWeightKey(exercise: Exercise, movement: ActiveMovement | null) {
   return movement?.id ?? exerciseKey(exercise);
+}
+
+function baselineTargetsForWorkout(workoutPlan: Exercise[]) {
+  return workoutPlan
+    .filter((item) => exerciseKey(item) !== "warm_up")
+    .flatMap((item) => {
+      if (item.movements && item.movements.length > 0) {
+        return item.movements.map((movement) => ({
+          id: movement.id,
+          label: `${item.name}: ${movement.name}`,
+        }));
+      }
+
+      return [{
+        id: exerciseKey(item),
+        label: item.name,
+      }];
+    });
+}
+
+function baselineChangeSymbol(oldWeight: number, newWeight: number): BaselineChangeSymbol {
+  if (newWeight > oldWeight) return "up";
+  if (newWeight < oldWeight) return "down";
+  return "same";
+}
+
+function baselineChangeLabel(change: BaselineChangeSymbol) {
+  if (change === "up") return "+";
+  if (change === "down") return "-";
+  return "=";
 }
 
 function resultMatchesExercise(result: SetResult, exercise: Exercise) {
@@ -184,9 +246,15 @@ function App() {
   const [baseWorkout, setBaseWorkout] = useState<Exercise[]>(workout);
   const [activeRemoteSession, setActiveRemoteSession] = useState<WorkoutSession | null>(null);
   const [showDetails, setShowDetails] = useState(false);
+  const [showBaselineChanges, setShowBaselineChanges] = useState(false);
+  const [baselineChangeRows, setBaselineChangeRows] = useState<BaselineChangeRow[]>([]);
   const [completedWorkouts, setCompletedWorkouts] = useState<CompletedWorkout[]>([]);
   const [userProfiles, setUserProfiles] = useState<Record<Person, Record<string, number>>>(defaultUserProfiles);
+  const [userBaselineStates, setUserBaselineStates] =
+    useState<Record<Person, UserBaselines>>(baselineStatesFromWeights(defaultUserProfiles));
   const [userStrategies, setUserStrategies] = useState<Record<Person, WeightStrategy>>(defaultUserStrategies);
+  const [baselineProgressionStrategies, setBaselineProgressionStrategies] =
+    useState<Record<Person, BaselineProgressionStrategy>>(defaultBaselineProgressionStrategies);
   const [viewingPast, setViewingPast] = useState(false);
   const [pastSession, setPastSession] = useState<WorkoutSession | null>(null);
   const [warmupSeconds, setWarmupSeconds] = useState(0);
@@ -370,17 +438,29 @@ function App() {
   }, []);
 
   useEffect(() => {
+    const defaultBaselineStates = baselineStatesFromWeights(defaultUserProfiles);
+
     Promise.all([
-      loadCurrentBaselines(defaultUserProfiles),
-      loadUserProfileSettings(defaultUserStrategies),
-    ]).then(([weights, { progressionStrategies }]) => {
-      setUserProfiles({
-        Mike: { ...defaultUserProfiles.Mike, ...weights.Mike },
-        Victoria: { ...defaultUserProfiles.Victoria, ...weights.Victoria },
-      });
+      loadCurrentBaselineStates(defaultUserProfiles),
+      loadUserProfileSettings({
+        progressionStrategies: defaultUserStrategies,
+        baselineProgressionStrategies: defaultBaselineProgressionStrategies,
+      }),
+    ]).then(([baselineStates, { progressionStrategies, baselineProgressionStrategies }]) => {
+      const nextBaselineStates = {
+        Mike: { ...defaultBaselineStates.Mike, ...baselineStates.Mike },
+        Victoria: { ...defaultBaselineStates.Victoria, ...baselineStates.Victoria },
+      };
+
+      setUserBaselineStates(nextBaselineStates);
+      setUserProfiles(weightsFromBaselineStates(nextBaselineStates));
       setUserStrategies({
         Mike: progressionStrategies.Mike ?? defaultUserStrategies.Mike,
         Victoria: progressionStrategies.Victoria ?? defaultUserStrategies.Victoria,
+      });
+      setBaselineProgressionStrategies({
+        Mike: baselineProgressionStrategies.Mike ?? defaultBaselineProgressionStrategies.Mike,
+        Victoria: baselineProgressionStrategies.Victoria ?? defaultBaselineProgressionStrategies.Victoria,
       });
     });
   }, []);
@@ -626,15 +706,48 @@ function App() {
           userProfiles,
           userStrategies
         );
-
-        // Save summary (fire-and-forget is fine)
-        saveCompletedWorkoutSummary({
-          completedAt: new Date().toISOString(),
+        const completedAt = new Date().toISOString();
+        const completedSummary = {
+          completedAt,
           totalSets,
           totalWeightLifted,
           exerciseOutcomes,
           results: newSession.results,
+        };
+        const { updatedProfiles, updatedBaselineStates } = calculateProgressedUserProfilesFromHistory(
+          userProfiles,
+          userBaselineStates,
+          effectiveWorkout,
+          [...completedWorkouts, completedSummary],
+          baselineProgressionStrategies,
+          userStrategies
+        );
+        const changeRows = baselineTargetsForWorkout(effectiveWorkout).map((target) => ({
+          id: target.id,
+          label: target.label,
+          changes: {
+            Mike: baselineChangeSymbol(
+              userProfiles.Mike[target.id] ?? 0,
+              updatedProfiles.Mike[target.id] ?? userProfiles.Mike[target.id] ?? 0
+            ),
+            Victoria: baselineChangeSymbol(
+              userProfiles.Victoria[target.id] ?? 0,
+              updatedProfiles.Victoria[target.id] ?? userProfiles.Victoria[target.id] ?? 0
+            ),
+          },
+        }));
+
+        // Save summary (fire-and-forget is fine)
+        saveCompletedWorkoutSummary(completedSummary);
+        Promise.all(
+          people.map((person) => saveCurrentBaselineStates(person, updatedBaselineStates[person]))
+        ).catch((error) => {
+          console.error("Failed to save current baselines:", error);
         });
+        setUserBaselineStates(updatedBaselineStates);
+        setUserProfiles(updatedProfiles);
+        setBaselineChangeRows(changeRows);
+        setShowBaselineChanges(true);
       }
     }
 
@@ -669,6 +782,44 @@ function App() {
         <section className="card summary-card">
           <h1>{viewingPast ? "Workout Results" : "Workout Complete 🎉"}</h1>
           <p className="subtitle">{viewingPast ? "Past workout summary" : "Nice work, both of you."}</p>
+
+          {!viewingPast && showBaselineChanges && (
+            <div className="modal-backdrop" role="presentation">
+              <div className="modal" role="dialog" aria-modal="true" aria-labelledby="baseline-changes-title">
+                <h2 id="baseline-changes-title">Baseline Updates</h2>
+
+                <table className="baseline-table">
+                  <thead>
+                    <tr>
+                      <th>Exercise</th>
+                      {people.map((person) => (
+                        <th key={person}>{person}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {baselineChangeRows.map((row) => (
+                      <tr key={row.id}>
+                        <td>{row.label}</td>
+                        {people.map((person) => (
+                          <td key={person} className={`baseline-change ${row.changes[person]}`}>
+                            {baselineChangeLabel(row.changes[person])}
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+
+                <button
+                  className="primary-button"
+                  onClick={() => setShowBaselineChanges(false)}
+                >
+                  OK
+                </button>
+              </div>
+            </div>
+          )}
 
           <div className="workout-detail">
             <p>
