@@ -176,13 +176,25 @@ button:disabled {
 
 .baseline-table th:not(:first-child),
 .baseline-table td:not(:first-child) {
-  width: 72px;
+  width: 112px;
   text-align: center;
 }
 
 .baseline-change {
-  font-size: 1.1rem;
   font-weight: 800;
+}
+
+.baseline-symbol {
+  font-size: 1.15rem;
+  line-height: 1;
+}
+
+.baseline-detail {
+  margin-top: 4px;
+  color: #555;
+  font-size: 0.78rem;
+  font-weight: 600;
+  line-height: 1.2;
 }
 
 .baseline-change.up {

@@ -1,5 +1,5 @@
 import { collectionName, db } from "./firebase";
-import { addDoc, collection, getDocs, orderBy, query, doc, onSnapshot, setDoc, getDoc } from "firebase/firestore";
+import { addDoc, collection, getDocs, orderBy, query, doc, onSnapshot, setDoc, getDoc, runTransaction } from "firebase/firestore";
 import type { Person, Exercise as WorkoutExercise } from "./workoutData";
 import {
   calculateProgressedBaselineStates,
@@ -137,6 +137,7 @@ export type ExerciseOutcome = "exact" | "up" | "down" | "neutral";
 export type ExerciseOutcomes = Record<string, Record<string, ExerciseOutcome>>;
 
 export type CompletedWorkoutSummary = {
+  sessionId?: string;
   completedAt: string;
   totalSets: number;
   totalWeightLifted: number;
@@ -286,6 +287,56 @@ export function saveCurrentBaselineStates(person: string, baselines: UserBaselin
   return setDoc(doc(db, collectionName("currentBaselines"), person), {
     userId: person,
     baselines: prepareStoredBaselines(baselines),
+  });
+}
+
+export async function finalizeCompletedWorkout({
+  sessionId,
+  summary,
+  baselineStates,
+  session,
+}: {
+  sessionId: string;
+  summary: CompletedWorkoutSummary;
+  baselineStates: Record<string, UserBaselines>;
+  session: unknown;
+}) {
+  const completedRef = doc(db, collectionName("completedWorkouts"), sessionId);
+  const sessionRef = doc(db, collectionName("workoutSessions"), demoSessionId);
+  const now = new Date().toISOString();
+  const preparedSession = removeUndefinedValues({
+    ...(session as Record<string, unknown>),
+    sessionId,
+    status: "completed",
+    complete: true,
+    updatedAt: now,
+  }) as Record<string, unknown>;
+
+  return runTransaction(db, async (transaction) => {
+    const completedSnapshot = await transaction.get(completedRef);
+
+    if (completedSnapshot.exists()) {
+      transaction.set(sessionRef, preparedSession, { merge: true });
+      return { created: false };
+    }
+
+    transaction.set(completedRef, {
+      ...summary,
+      sessionId,
+      finalizedAt: now,
+    });
+
+    for (const [person, baselines] of Object.entries(baselineStates)) {
+      transaction.set(doc(db, collectionName("currentBaselines"), person), {
+        userId: person,
+        baselines: prepareStoredBaselines(baselines),
+        updatedAt: now,
+      });
+    }
+
+    transaction.set(sessionRef, preparedSession, { merge: true });
+
+    return { created: true };
   });
 }
 

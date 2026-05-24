@@ -2,7 +2,7 @@ import { useEffect, useState, useRef } from "react";
 import "./App.css";
 import { people, workout, type Person, type Exercise } from "./workoutData";
 import { listenToWorkoutSession, loadCurrentWorkoutSession, saveWorkoutSession } from "./workoutSession";
-import { saveCompletedWorkoutSummary, loadCompletedWorkoutSummaries, loadCurrentBaselineStates, loadUserProfileSettings, loadWorkoutPlan, calculateExerciseOutcomes, calculateProgressedUserProfilesFromHistory, saveCurrentBaselineStates, type BaselineProgressionStrategy, type SetResult, type ExerciseOutcomes, type UserBaselines } from "./workoutSession";
+import { finalizeCompletedWorkout, loadCompletedWorkoutSummaries, loadCurrentBaselineStates, loadUserProfileSettings, loadWorkoutPlan, calculateExerciseOutcomes, calculateProgressedUserProfilesFromHistory, type BaselineProgressionStrategy, type SetResult, type ExerciseOutcomes, type UserBaselines } from "./workoutSession";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 
 declare const __APP_VERSION__: string;
@@ -88,13 +88,18 @@ const defaultBaselineProgressionStrategies: Record<Person, BaselineProgressionSt
   Victoria: "straight",
 };
 type BaselineChangeSymbol = "up" | "same" | "down";
+type BaselineChangeDetail = {
+  symbol: BaselineChangeSymbol;
+  text: string;
+};
 type BaselineChangeRow = {
   id: string;
   label: string;
-  changes: Record<Person, BaselineChangeSymbol>;
+  changes: Record<Person, BaselineChangeDetail>;
 };
 
 type WorkoutSession = {
+  sessionId?: string;
   started: boolean;
   complete: boolean;
   exerciseIndex: number;
@@ -166,6 +171,51 @@ function baselineChangeLabel(change: BaselineChangeSymbol) {
   return "=";
 }
 
+function baselineSuccessTarget(strategy: BaselineProgressionStrategy) {
+  if (strategy === "fast") return 2;
+  if (strategy === "medium") return 3;
+  if (strategy === "slow") return 4;
+  return null;
+}
+
+function formatBaselineChangeDetail(
+  oldWeight: number,
+  oldStreak: number,
+  newWeight: number,
+  newStreak: number,
+  strategy: BaselineProgressionStrategy
+): BaselineChangeDetail {
+  const symbol = baselineChangeSymbol(oldWeight, newWeight);
+
+  if (symbol !== "same") {
+    return {
+      symbol,
+      text: `${oldWeight} -> ${newWeight} lb`,
+    };
+  }
+
+  const target = baselineSuccessTarget(strategy);
+
+  if (!target) {
+    return {
+      symbol,
+      text: "No auto change",
+    };
+  }
+
+  if (newStreak > oldStreak) {
+    return {
+      symbol,
+      text: `Streak ${newStreak}/${target}`,
+    };
+  }
+
+  return {
+    symbol,
+    text: `Streak ${newStreak}/${target}`,
+  };
+}
+
 function resultMatchesExercise(result: SetResult, exercise: Exercise) {
   return result.exerciseId === exerciseKey(exercise) || (!result.exerciseId && result.exerciseName === exercise.name);
 }
@@ -224,6 +274,10 @@ function formatSeconds(seconds: number) {
   const minutes = Math.floor(seconds / 60);
   const remainder = seconds % 60;
   return `${String(minutes).padStart(2, "0")}:${String(remainder).padStart(2, "0")}`;
+}
+
+function createSessionId() {
+  return `workout-${new Date().toISOString().replace(/[^0-9]/g, "").slice(0, 14)}-${CLIENT_ID.slice(-6)}`;
 }
 
 const initialSession: WorkoutSession = {
@@ -683,6 +737,7 @@ function App() {
 
         newSession = {
           ...newSession,
+          sessionId: newSession.sessionId ?? createSessionId(),
           complete: true,
           status: "completed",
           completedAt: new Date().toISOString(),
@@ -707,7 +762,10 @@ function App() {
           userStrategies
         );
         const completedAt = new Date().toISOString();
+        const completedSessionId = newSession.sessionId ?? createSessionId();
+        newSession.sessionId = completedSessionId;
         const completedSummary = {
+          sessionId: completedSessionId,
           completedAt,
           totalSets,
           totalWeightLifted,
@@ -726,32 +784,57 @@ function App() {
           id: target.id,
           label: target.label,
           changes: {
-            Mike: baselineChangeSymbol(
-              userProfiles.Mike[target.id] ?? 0,
-              updatedProfiles.Mike[target.id] ?? userProfiles.Mike[target.id] ?? 0
+            Mike: formatBaselineChangeDetail(
+              userBaselineStates.Mike[target.id]?.weight ?? userProfiles.Mike[target.id] ?? 0,
+              userBaselineStates.Mike[target.id]?.successStreak ?? 0,
+              updatedBaselineStates.Mike[target.id]?.weight ?? updatedProfiles.Mike[target.id] ?? userProfiles.Mike[target.id] ?? 0,
+              updatedBaselineStates.Mike[target.id]?.successStreak ?? 0,
+              baselineProgressionStrategies.Mike
             ),
-            Victoria: baselineChangeSymbol(
-              userProfiles.Victoria[target.id] ?? 0,
-              updatedProfiles.Victoria[target.id] ?? userProfiles.Victoria[target.id] ?? 0
+            Victoria: formatBaselineChangeDetail(
+              userBaselineStates.Victoria[target.id]?.weight ?? userProfiles.Victoria[target.id] ?? 0,
+              userBaselineStates.Victoria[target.id]?.successStreak ?? 0,
+              updatedBaselineStates.Victoria[target.id]?.weight ?? updatedProfiles.Victoria[target.id] ?? userProfiles.Victoria[target.id] ?? 0,
+              updatedBaselineStates.Victoria[target.id]?.successStreak ?? 0,
+              baselineProgressionStrategies.Victoria
             ),
           },
         }));
 
-        // Save summary (fire-and-forget is fine)
-        saveCompletedWorkoutSummary(completedSummary);
-        Promise.all(
-          people.map((person) => saveCurrentBaselineStates(person, updatedBaselineStates[person]))
-        ).catch((error) => {
-          console.error("Failed to save current baselines:", error);
-        });
-        setUserBaselineStates(updatedBaselineStates);
-        setUserProfiles(updatedProfiles);
-        setBaselineChangeRows(changeRows);
-        setShowBaselineChanges(true);
+        try {
+          const finalizeResult = await finalizeCompletedWorkout({
+            sessionId: completedSessionId,
+            summary: completedSummary,
+            baselineStates: updatedBaselineStates,
+            session: newSession,
+          });
+
+          if (finalizeResult.created) {
+            setUserBaselineStates(updatedBaselineStates);
+            setUserProfiles(updatedProfiles);
+            setBaselineChangeRows(changeRows);
+            setShowBaselineChanges(true);
+            setCompletedWorkouts((current) => [
+              ...current.filter((workout) => workout.id !== newSession.sessionId),
+              { id: completedSessionId, ...completedSummary },
+            ]);
+          } else {
+            setBaselineChangeRows([]);
+            setShowBaselineChanges(false);
+          }
+        } catch (error) {
+          console.error("Failed to finalize workout:", error);
+          return;
+        }
       }
     }
 
-    await commitSession(newSession, action);
+    if (newSession.complete) {
+      setLocalSession(prepareLocalSession(newSession));
+      setPendingAction((current) => current === action ? null : current);
+    } else {
+      await commitSession(newSession, action);
+    }
   }
 
   if (session.complete || viewingPast) {
@@ -802,8 +885,13 @@ function App() {
                       <tr key={row.id}>
                         <td>{row.label}</td>
                         {people.map((person) => (
-                          <td key={person} className={`baseline-change ${row.changes[person]}`}>
-                            {baselineChangeLabel(row.changes[person])}
+                          <td key={person} className={`baseline-change ${row.changes[person].symbol}`}>
+                            <div className="baseline-symbol">
+                              {baselineChangeLabel(row.changes[person].symbol)}
+                            </div>
+                            <div className="baseline-detail">
+                              {row.changes[person].text}
+                            </div>
                           </td>
                         ))}
                       </tr>
@@ -929,6 +1017,7 @@ function App() {
 
                 const newSession = {
                   ...initialSession,
+                  sessionId: createSessionId(),
                   started: true,
                   status: "active" as const,
                   reorderedWorkout: baseWorkout,
