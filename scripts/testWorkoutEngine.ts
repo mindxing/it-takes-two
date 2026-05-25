@@ -334,12 +334,12 @@ function effectiveWorkout(session: WorkoutSession, fallback: Exercise[]) {
   assert.deepEqual(prompts, [
     "Mike:press:S1",
     "Victoria:pulldown:S1",
-    "Mike:pulldown:S1",
     "Victoria:press:S1",
+    "Mike:pulldown:S1",
     "Mike:press:S2",
     "Victoria:pulldown:S2",
-    "Mike:pulldown:S2",
     "Victoria:press:S2",
+    "Mike:pulldown:S2",
   ]);
   assert.equal(session.complete, true);
 }
@@ -378,9 +378,9 @@ function effectiveWorkout(session: WorkoutSession, fallback: Exercise[]) {
     "Mike:combo:combo_inner:S1",
     "Mike:combo:combo_outer:S1",
     "Victoria:curl:single:S1",
-    "Mike:curl:single:S1",
     "Victoria:combo:combo_inner:S1",
     "Victoria:combo:combo_outer:S1",
+    "Mike:curl:single:S1",
   ]);
 }
 

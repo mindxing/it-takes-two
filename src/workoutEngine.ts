@@ -498,14 +498,14 @@ function tandemTurnFor(session: WorkoutSession, turnIndex: number) {
 
   if (turnIndex === 2) {
     return {
-      exerciseIndex: session.tandem.secondaryExerciseIndex,
-      personIndex: firstPersonIndex,
+      exerciseIndex: session.tandem.primaryExerciseIndex,
+      personIndex: secondPersonIndex,
     };
   }
 
   return {
-    exerciseIndex: session.tandem.primaryExerciseIndex,
-    personIndex: secondPersonIndex,
+    exerciseIndex: session.tandem.secondaryExerciseIndex,
+    personIndex: firstPersonIndex,
   };
 }
 
