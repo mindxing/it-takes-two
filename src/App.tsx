@@ -3,13 +3,26 @@ import "./App.css";
 import { people, workout, type Person, type Exercise } from "./workoutData";
 import { appendWorkoutEvent, listenToWorkoutEvents, listenToWorkoutSession, loadCurrentWorkoutSession } from "./workoutSession";
 import { finalizeCompletedWorkout, loadCompletedWorkoutSummaries, loadCurrentBaselineStates, loadUserProfileSettings, loadWorkoutPlan, calculateExerciseOutcomes, calculateProgressedUserProfilesFromHistory, type BaselineProgressionStrategy, type SetResult, type ExerciseOutcomes, type UserBaselines, type WorkoutEventType } from "./workoutSession";
+import {
+  activeMovement,
+  adjustCurrentReps,
+  adjustCurrentWeight,
+  chooseFirstPerson,
+  completeWarmup,
+  exerciseKey,
+  initialSession,
+  postponeCurrentExercise,
+  recordSetAndAdvance,
+  startWarmup,
+  startWorkoutSession,
+  type SetStatus,
+  type WeightStrategy,
+  type WorkoutSession,
+} from "./workoutEngine";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 
 declare const __APP_VERSION__: string;
 
-type SetStatus = "completed" | "skipped";
-
-type WeightStrategy = "pyramid" | "straight";
 type PendingAction =
   | "start"
   | "warmup"
@@ -31,8 +44,6 @@ type CompletedWorkout = {
   exerciseOutcomes?: ExerciseOutcomes;
   results: SetResult[];
 };
-
-type ActiveMovement = NonNullable<Exercise["movements"]>[number];
 
 const defaultUserProfiles: Record<Person, Record<string, number>> = {
   Mike: {
@@ -98,49 +109,10 @@ type BaselineChangeRow = {
   changes: Record<Person, BaselineChangeDetail>;
 };
 
-type WorkoutSession = {
-  sessionId?: string;
-  started: boolean;
-  complete: boolean;
-  exerciseIndex: number;
-  exerciseOrder: Person[];
-  firstPerson: Person | null;
-  currentPersonIndex: number;
-  currentSet: number;
-  currentMovementIndex?: number;
-  currentReps: number;
-  currentWeight: number;
-  results: SetResult[];
-  reorderedWorkout?: Exercise[];
-  warmupStartedAt?: string | null;
-  adjustedBaselines?: Record<string, Partial<Record<Person, number>>>;
-  adjustedRepBaselines?: Record<string, Partial<Record<Person, number>>>;
-  status?: "active" | "completed" | "cancelled";
-  createdAt?: string;
-  updatedAt?: string;
-  completedAt?: string;
-  cancelledAt?: string;
-  localRevision?: number;
-  lastWriterId?: string;
-  eventSequence?: number;
-};
-
 type WorkoutProgressProps = {
   exerciseIndex: number;
   workout: Exercise[];
 };
-
-function exerciseKey(exercise: Exercise) {
-  return exercise.id || exercise.name.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "");
-}
-
-function activeMovement(exercise: Exercise, movementIndex = 0) {
-  return exercise.movements?.[movementIndex] ?? null;
-}
-
-function activeWeightKey(exercise: Exercise, movement: ActiveMovement | null) {
-  return movement?.id ?? exerciseKey(exercise);
-}
 
 function baselineTargetsForWorkout(workoutPlan: Exercise[]) {
   return workoutPlan
@@ -221,28 +193,6 @@ function resultMatchesExercise(result: SetResult, exercise: Exercise) {
   return result.exerciseId === exerciseKey(exercise) || (!result.exerciseId && result.exerciseName === exercise.name);
 }
 
-function getProfileWeight(
-  profiles: Record<Person, Record<string, number>>,
-  person: Person,
-  exercise: Exercise,
-  movement: ActiveMovement | null = null
-) {
-  return profiles[person][activeWeightKey(exercise, movement)] ?? profiles[person][exerciseKey(exercise)] ?? profiles[person][exercise.name] ?? 0;
-}
-
-function getPersonExerciseValue(
-  values: Record<string, Partial<Record<Person, number>>> | undefined,
-  exercise: Exercise,
-  person: Person,
-  movement: ActiveMovement | null = null
-) {
-  return values?.[activeWeightKey(exercise, movement)]?.[person] ?? values?.[exerciseKey(exercise)]?.[person] ?? values?.[exercise.name]?.[person];
-}
-
-function getSetPlan(exercise: Exercise, movement: ActiveMovement | null) {
-  return movement?.setPlan ?? exercise.setPlan;
-}
-
 function WorkoutProgress({ exerciseIndex, workout }: WorkoutProgressProps) {
   const totalExercises = workout.length;
   const currentNumber = exerciseIndex + 1;
@@ -280,21 +230,6 @@ function formatSeconds(seconds: number) {
 function createSessionId() {
   return `workout-${new Date().toISOString().replace(/[^0-9]/g, "").slice(0, 14)}-${CLIENT_ID.slice(-6)}`;
 }
-
-const initialSession: WorkoutSession = {
-  started: false,
-  complete: false,
-  exerciseIndex: 0,
-  exerciseOrder: people,
-  firstPerson: null,
-  currentPersonIndex: 0,
-  currentSet: 1,
-  currentReps: 10,
-  currentWeight: 0,
-  results: [],
-  adjustedBaselines: {},
-  adjustedRepBaselines: {},
-};
 
 function App() {
   const [session, setSession] = useState<WorkoutSession>(initialSession);
@@ -629,249 +564,101 @@ function App() {
 
     if (pendingAction === action) return;
 
-    const session = sessionRef.current;
-
-    if (!session.firstPerson) return;
-
-    const exercise = effectiveWorkout[session.exerciseIndex];
-    const movement = activeMovement(exercise, session.currentMovementIndex ?? 0);
-    const currentPerson = session.exerciseOrder[session.currentPersonIndex];
-
-    const newResult: SetResult = {
-      exerciseId: exerciseKey(exercise),
-      exerciseName: exercise.name,
-      person: currentPerson,
-      setNumber: session.currentSet,
-      reps: status === "skipped" ? 0 : session.currentReps,
-      weight: session.currentWeight,
+    const completedAt = new Date().toISOString();
+    const newSession = recordSetAndAdvance({
+      session: sessionRef.current,
+      workout: effectiveWorkout,
+      userProfiles,
+      userStrategies,
       status,
-    };
-
-    if (movement) {
-      newResult.movementId = movement.id;
-      newResult.movementName = movement.name;
-    }
-
-    // Start with updated results
-    let newSession = {
-      ...session,
-      results: [...session.results, newResult],
-    };
-
-    // ---- Move to next step (inline your existing logic) ----
-
-    if (movement && (session.currentMovementIndex ?? 0) < (exercise.movements?.length ?? 1) - 1) {
-      const nextMovementIndex = (session.currentMovementIndex ?? 0) + 1;
-      const nextMovement = activeMovement(exercise, nextMovementIndex);
-      const nextSetPlan = getSetPlan(exercise, nextMovement);
-      const target = nextSetPlan[session.currentSet - 1];
-      const nextReps =
-        userStrategies[currentPerson] === "straight"
-          ? getPersonExerciseValue(session.adjustedRepBaselines, exercise, currentPerson, nextMovement) ?? target.reps
-          : target.reps;
-      const nextAdjustedRepBaselines =
-        userStrategies[currentPerson] === "straight"
-          ? {
-            ...session.adjustedRepBaselines,
-            [activeWeightKey(exercise, nextMovement)]: {
-              ...(session.adjustedRepBaselines?.[activeWeightKey(exercise, nextMovement)] || {}),
-              [currentPerson]: nextReps,
-            },
-          }
-          : session.adjustedRepBaselines;
-
-      newSession = {
-        ...newSession,
-        currentMovementIndex: nextMovementIndex,
-        currentReps: nextReps,
-        currentWeight:
-          (
-            getPersonExerciseValue(session.adjustedBaselines, exercise, currentPerson, nextMovement) ??
-            getProfileWeight(userProfiles, currentPerson, exercise, nextMovement) ??
-            0
-          ) + (userStrategies[currentPerson] === "pyramid" ? target.weightOffset : 0),
-        adjustedRepBaselines: nextAdjustedRepBaselines,
-      };
-    } else if (session.currentPersonIndex === 0) {
-      const nextPerson = session.exerciseOrder[1];
-      const nextMovement = activeMovement(exercise, 0);
-      const nextSetPlan = getSetPlan(exercise, nextMovement);
-      const target = nextSetPlan[session.currentSet - 1];
-      const nextReps =
-        userStrategies[nextPerson] === "straight"
-          ? getPersonExerciseValue(session.adjustedRepBaselines, exercise, nextPerson, nextMovement) ?? target.reps
-          : target.reps;
-      const nextAdjustedRepBaselines =
-        userStrategies[nextPerson] === "straight"
-          ? {
-            ...session.adjustedRepBaselines,
-            [activeWeightKey(exercise, nextMovement)]: {
-              ...(session.adjustedRepBaselines?.[activeWeightKey(exercise, nextMovement)] || {}),
-              [nextPerson]: nextReps,
-            },
-          }
-          : session.adjustedRepBaselines;
-
-      newSession = {
-        ...newSession,
-        currentPersonIndex: 1,
-        currentMovementIndex: 0,
-        currentReps: nextReps,
-        currentWeight:
-          (
-            getPersonExerciseValue(session.adjustedBaselines, exercise, nextPerson, nextMovement) ??
-            getProfileWeight(userProfiles, nextPerson, exercise, nextMovement) ??
-            0
-          ) + (userStrategies[nextPerson] === "pyramid" ? target.weightOffset : 0),
-        adjustedRepBaselines: nextAdjustedRepBaselines,
-      };
-    } else if (session.currentSet < exercise.sets) {
-      const nextSet = session.currentSet + 1;
-      const nextPerson = session.exerciseOrder[0];
-      const nextMovement = activeMovement(exercise, 0);
-      const nextSetPlan = getSetPlan(exercise, nextMovement);
-      const target = nextSetPlan[nextSet - 1];
-      const nextReps =
-        userStrategies[nextPerson] === "straight"
-          ? getPersonExerciseValue(session.adjustedRepBaselines, exercise, nextPerson, nextMovement) ?? target.reps
-          : target.reps;
-      const nextAdjustedRepBaselines =
-        userStrategies[nextPerson] === "straight"
-          ? {
-            ...session.adjustedRepBaselines,
-            [activeWeightKey(exercise, nextMovement)]: {
-              ...(session.adjustedRepBaselines?.[activeWeightKey(exercise, nextMovement)] || {}),
-              [nextPerson]: nextReps,
-            },
-          }
-          : session.adjustedRepBaselines;
-
-      newSession = {
-        ...newSession,
-        currentPersonIndex: 0,
-        currentMovementIndex: 0,
-        currentSet: nextSet,
-        currentReps: nextReps,
-        currentWeight:
-          (
-            getPersonExerciseValue(session.adjustedBaselines, exercise, nextPerson, nextMovement) ??
-            getProfileWeight(userProfiles, nextPerson, exercise, nextMovement) ??
-            0
-          ) + (userStrategies[nextPerson] === "pyramid" ? target.weightOffset : 0),
-        adjustedRepBaselines: nextAdjustedRepBaselines,
-      };
-    } else {
-      // move to next exercise
-      if (session.exerciseIndex < effectiveWorkout.length - 1) {
-        newSession = {
-          ...newSession,
-          exerciseIndex: session.exerciseIndex + 1,
-          firstPerson: null,
-          currentPersonIndex: 0,
-          currentMovementIndex: 0,
-          currentSet: 1,
-        };
-      } else {
-
-        newSession = {
-          ...newSession,
-          sessionId: newSession.sessionId ?? createSessionId(),
-          complete: true,
-          status: "completed",
-          completedAt: new Date().toISOString(),
-        };
-
-        // Calculate summary BEFORE saving
-        const completedResults = newSession.results.filter(
-          (r) => r.status === "completed"
-        );
-
-        const totalSets = completedResults.length;
-
-        const totalWeightLifted = completedResults.reduce(
-          (sum, r) => sum + r.weight * r.reps,
-          0
-        );
-
-        const exerciseOutcomes = calculateExerciseOutcomes(
-          newSession.results,
-          effectiveWorkout,
-          userProfiles,
-          userStrategies
-        );
-        const completedAt = new Date().toISOString();
-        const completedSessionId = newSession.sessionId ?? createSessionId();
-        newSession.sessionId = completedSessionId;
-        const completedSummary = {
-          sessionId: completedSessionId,
-          completedAt,
-          totalSets,
-          totalWeightLifted,
-          exerciseOutcomes,
-          results: newSession.results,
-        };
-        const { updatedProfiles, updatedBaselineStates } = calculateProgressedUserProfilesFromHistory(
-          userProfiles,
-          userBaselineStates,
-          effectiveWorkout,
-          [...completedWorkouts, completedSummary],
-          baselineProgressionStrategies,
-          userStrategies
-        );
-        const changeRows = baselineTargetsForWorkout(effectiveWorkout).map((target) => ({
-          id: target.id,
-          label: target.label,
-          changes: {
-            Mike: formatBaselineChangeDetail(
-              userBaselineStates.Mike[target.id]?.weight ?? userProfiles.Mike[target.id] ?? 0,
-              userBaselineStates.Mike[target.id]?.successStreak ?? 0,
-              updatedBaselineStates.Mike[target.id]?.weight ?? updatedProfiles.Mike[target.id] ?? userProfiles.Mike[target.id] ?? 0,
-              updatedBaselineStates.Mike[target.id]?.successStreak ?? 0,
-              baselineProgressionStrategies.Mike
-            ),
-            Victoria: formatBaselineChangeDetail(
-              userBaselineStates.Victoria[target.id]?.weight ?? userProfiles.Victoria[target.id] ?? 0,
-              userBaselineStates.Victoria[target.id]?.successStreak ?? 0,
-              updatedBaselineStates.Victoria[target.id]?.weight ?? updatedProfiles.Victoria[target.id] ?? userProfiles.Victoria[target.id] ?? 0,
-              updatedBaselineStates.Victoria[target.id]?.successStreak ?? 0,
-              baselineProgressionStrategies.Victoria
-            ),
-          },
-        }));
-
-        try {
-          const finalizeResult = await finalizeCompletedWorkout({
-            sessionId: completedSessionId,
-            summary: completedSummary,
-            baselineStates: updatedBaselineStates,
-            session: newSession,
-          });
-
-          if (finalizeResult.created) {
-            setUserBaselineStates(updatedBaselineStates);
-            setUserProfiles(updatedProfiles);
-            setBaselineChangeRows(changeRows);
-            setShowBaselineChanges(true);
-            setCompletedWorkouts((current) => [
-              ...current.filter((workout) => workout.id !== newSession.sessionId),
-              { id: completedSessionId, ...completedSummary },
-            ]);
-          } else {
-            setBaselineChangeRows([]);
-            setShowBaselineChanges(false);
-          }
-        } catch (error) {
-          console.error("Failed to finalize workout:", error);
-          return;
-        }
-      }
-    }
+      completedAt,
+      createSessionId,
+    });
 
     if (newSession.complete) {
+      const completedResults = newSession.results.filter(
+        (r) => r.status === "completed"
+      );
+      const totalSets = completedResults.length;
+      const totalWeightLifted = completedResults.reduce(
+        (sum, r) => sum + r.weight * r.reps,
+        0
+      );
+      const exerciseOutcomes = calculateExerciseOutcomes(
+        newSession.results,
+        effectiveWorkout,
+        userProfiles,
+        userStrategies
+      );
+      const completedSessionId = newSession.sessionId ?? createSessionId();
+      newSession.sessionId = completedSessionId;
+      const completedSummary = {
+        sessionId: completedSessionId,
+        completedAt,
+        totalSets,
+        totalWeightLifted,
+        exerciseOutcomes,
+        results: newSession.results,
+      };
+      const { updatedProfiles, updatedBaselineStates } = calculateProgressedUserProfilesFromHistory(
+        userProfiles,
+        userBaselineStates,
+        effectiveWorkout,
+        [...completedWorkouts, completedSummary],
+        baselineProgressionStrategies,
+        userStrategies
+      );
+      const changeRows = baselineTargetsForWorkout(effectiveWorkout).map((target) => ({
+        id: target.id,
+        label: target.label,
+        changes: {
+          Mike: formatBaselineChangeDetail(
+            userBaselineStates.Mike[target.id]?.weight ?? userProfiles.Mike[target.id] ?? 0,
+            userBaselineStates.Mike[target.id]?.successStreak ?? 0,
+            updatedBaselineStates.Mike[target.id]?.weight ?? updatedProfiles.Mike[target.id] ?? userProfiles.Mike[target.id] ?? 0,
+            updatedBaselineStates.Mike[target.id]?.successStreak ?? 0,
+            baselineProgressionStrategies.Mike
+          ),
+          Victoria: formatBaselineChangeDetail(
+            userBaselineStates.Victoria[target.id]?.weight ?? userProfiles.Victoria[target.id] ?? 0,
+            userBaselineStates.Victoria[target.id]?.successStreak ?? 0,
+            updatedBaselineStates.Victoria[target.id]?.weight ?? updatedProfiles.Victoria[target.id] ?? userProfiles.Victoria[target.id] ?? 0,
+            updatedBaselineStates.Victoria[target.id]?.successStreak ?? 0,
+            baselineProgressionStrategies.Victoria
+          ),
+        },
+      }));
+
+      try {
+        const finalizeResult = await finalizeCompletedWorkout({
+          sessionId: completedSessionId,
+          summary: completedSummary,
+          baselineStates: updatedBaselineStates,
+          session: newSession,
+        });
+
+        if (finalizeResult.created) {
+          setUserBaselineStates(updatedBaselineStates);
+          setUserProfiles(updatedProfiles);
+          setBaselineChangeRows(changeRows);
+          setShowBaselineChanges(true);
+          setCompletedWorkouts((current) => [
+            ...current.filter((workout) => workout.id !== newSession.sessionId),
+            { id: completedSessionId, ...completedSummary },
+          ]);
+        } else {
+          setBaselineChangeRows([]);
+          setShowBaselineChanges(false);
+        }
+      } catch (error) {
+        console.error("Failed to finalize workout:", error);
+        return;
+      }
+
       setLocalSession(prepareLocalSession(newSession));
       setPendingAction((current) => current === action ? null : current);
     } else {
-    await commitSession(newSession, action, status === "skipped" ? "skipSet" : "completeSet");
+      await commitSession(newSession, action, status === "skipped" ? "skipSet" : "completeSet");
     }
   }
 
@@ -1053,13 +840,7 @@ function App() {
                   return;
                 }
 
-                const newSession = {
-                  ...initialSession,
-                  sessionId: createSessionId(),
-                  started: true,
-                  status: "active" as const,
-                  reorderedWorkout: baseWorkout,
-                };
+                const newSession = startWorkoutSession(createSessionId(), baseWorkout);
 
                 await commitSession(newSession, "start", "startWorkout");
               } catch (error) {
@@ -1126,23 +907,13 @@ function App() {
               if (pendingAction === "warmup") return;
 
               if (!warmupRunning) {
-                const newSession = {
-                  ...sessionRef.current,
-                  warmupStartedAt: new Date().toISOString(),
-                };
+                const newSession = startWarmup(sessionRef.current, new Date().toISOString());
 
                 await commitSession(newSession, "warmup");
                 return;
               }
 
-              const newSession = {
-                ...sessionRef.current,
-                warmupStartedAt: null,
-                exerciseIndex: session.exerciseIndex + 1,
-                firstPerson: null,
-                currentPersonIndex: 0,
-                currentSet: 1,
-              };
+              const newSession = completeWarmup(sessionRef.current);
 
               await commitSession(newSession, "warmup");
             }}
@@ -1176,34 +947,13 @@ function App() {
               onClick={async () => {
                 if (pendingAction === "choose-first") return;
 
-                const order: Person[] = ["Victoria", "Mike"];
-                const firstMovement = activeMovement(exercise, 0);
-                const target = getSetPlan(exercise, firstMovement)[0];
-
-                const newSession = {
-                  ...sessionRef.current,
-                  exerciseOrder: order,
-                  firstPerson: "Victoria" as Person,
-                  currentPersonIndex: 0,
-                  currentMovementIndex: 0,
-                  currentSet: 1,
-                  currentReps: target.reps,
-                  currentWeight: getProfileWeight(userProfiles, "Victoria", exercise, firstMovement) + (userStrategies["Victoria"] === "pyramid" ? target.weightOffset : 0),
-                  adjustedBaselines: {
-                    ...session.adjustedBaselines,
-                    [activeWeightKey(exercise, firstMovement)]: {
-                      ...(session.adjustedBaselines?.[activeWeightKey(exercise, firstMovement)] || {}),
-                      Victoria: getProfileWeight(userProfiles, "Victoria", exercise, firstMovement),
-                    },
-                  },
-                  adjustedRepBaselines: {
-                    ...session.adjustedRepBaselines,
-                    [activeWeightKey(exercise, firstMovement)]: {
-                      ...(session.adjustedRepBaselines?.[activeWeightKey(exercise, firstMovement)] || {}),
-                      Victoria: target.reps,
-                    },
-                  },
-                };
+                const newSession = chooseFirstPerson({
+                  session: sessionRef.current,
+                  workout: effectiveWorkout,
+                  userProfiles,
+                  userStrategies,
+                  firstPerson: "Victoria",
+                });
 
                 await commitSession(newSession, "choose-first");
               }}
@@ -1216,34 +966,13 @@ function App() {
               onClick={async () => {
                 if (pendingAction === "choose-first") return;
 
-                const order: Person[] = ["Mike", "Victoria"];
-                const firstMovement = activeMovement(exercise, 0);
-                const target = getSetPlan(exercise, firstMovement)[0];
-
-                const newSession = {
-                  ...sessionRef.current,
-                  exerciseOrder: order,
-                  firstPerson: "Mike" as Person,
-                  currentPersonIndex: 0,
-                  currentMovementIndex: 0,
-                  currentSet: 1,
-                  currentReps: target.reps,
-                  currentWeight: getProfileWeight(userProfiles, "Mike", exercise, firstMovement) + (userStrategies["Mike"] === "pyramid" ? target.weightOffset : 0),
-                  adjustedBaselines: {
-                    ...session.adjustedBaselines,
-                    [activeWeightKey(exercise, firstMovement)]: {
-                      ...(session.adjustedBaselines?.[activeWeightKey(exercise, firstMovement)] || {}),
-                      Mike: getProfileWeight(userProfiles, "Mike", exercise, firstMovement),
-                    },
-                  },
-                  adjustedRepBaselines: {
-                    ...session.adjustedRepBaselines,
-                    [activeWeightKey(exercise, firstMovement)]: {
-                      ...(session.adjustedRepBaselines?.[activeWeightKey(exercise, firstMovement)] || {}),
-                      Mike: target.reps,
-                    },
-                  },
-                };
+                const newSession = chooseFirstPerson({
+                  session: sessionRef.current,
+                  workout: effectiveWorkout,
+                  userProfiles,
+                  userStrategies,
+                  firstPerson: "Mike",
+                });
 
                 await commitSession(newSession, "choose-first");
               }}
@@ -1259,21 +988,7 @@ function App() {
             onClick={async () => {
               if (pendingAction === "postpone") return;
 
-              if (session.exerciseIndex >= effectiveWorkout.length - 1) return;
-
-              const currentWorkout = effectiveWorkout;
-              const newWorkout = [...currentWorkout];
-
-              // Remove current exercise
-              const currentExercise = newWorkout.splice(session.exerciseIndex, 1)[0];
-
-              // Push to end
-              newWorkout.push(currentExercise);
-
-              const newSession = {
-                ...sessionRef.current,
-                reorderedWorkout: newWorkout,
-              };
+              const newSession = postponeCurrentExercise(sessionRef.current, effectiveWorkout);
 
               await commitSession(newSession, "postpone");
             }}
@@ -1309,27 +1024,7 @@ function App() {
             onClick={() => {
               updateStepperSession((currentSession) => {
                 const workoutForSession = currentSession.reorderedWorkout || baseWorkout;
-                const currentExercise = workoutForSession[currentSession.exerciseIndex];
-                const currentMovement = activeMovement(currentExercise, currentSession.currentMovementIndex ?? 0);
-                const currentSetPerson = currentSession.firstPerson
-                  ? currentSession.exerciseOrder[currentSession.currentPersonIndex]
-                  : null;
-
-                if (!currentSetPerson) return currentSession;
-
-                const newReps = Math.max(0, currentSession.currentReps - 1);
-
-                return {
-                  ...currentSession,
-                  currentReps: newReps,
-                  adjustedRepBaselines: {
-                    ...currentSession.adjustedRepBaselines,
-                    [activeWeightKey(currentExercise, currentMovement)]: {
-                      ...(currentSession.adjustedRepBaselines?.[activeWeightKey(currentExercise, currentMovement)] || {}),
-                      [currentSetPerson]: newReps,
-                    },
-                  },
-                };
+                return adjustCurrentReps(currentSession, workoutForSession, -1);
               });
             }}
           >
@@ -1340,27 +1035,7 @@ function App() {
             onClick={() => {
               updateStepperSession((currentSession) => {
                 const workoutForSession = currentSession.reorderedWorkout || baseWorkout;
-                const currentExercise = workoutForSession[currentSession.exerciseIndex];
-                const currentMovement = activeMovement(currentExercise, currentSession.currentMovementIndex ?? 0);
-                const currentSetPerson = currentSession.firstPerson
-                  ? currentSession.exerciseOrder[currentSession.currentPersonIndex]
-                  : null;
-
-                if (!currentSetPerson) return currentSession;
-
-                const newReps = currentSession.currentReps + 1;
-
-                return {
-                  ...currentSession,
-                  currentReps: newReps,
-                  adjustedRepBaselines: {
-                    ...currentSession.adjustedRepBaselines,
-                    [activeWeightKey(currentExercise, currentMovement)]: {
-                      ...(currentSession.adjustedRepBaselines?.[activeWeightKey(currentExercise, currentMovement)] || {}),
-                      [currentSetPerson]: newReps,
-                    },
-                  },
-                };
+                return adjustCurrentReps(currentSession, workoutForSession, 1);
               });
             }}
           >
@@ -1374,31 +1049,12 @@ function App() {
             onClick={() => {
               updateStepperSession((currentSession) => {
                 const workoutForSession = currentSession.reorderedWorkout || baseWorkout;
-                const currentExercise = workoutForSession[currentSession.exerciseIndex];
-                const currentMovement = activeMovement(currentExercise, currentSession.currentMovementIndex ?? 0);
-                const currentSetPerson = currentSession.firstPerson
-                  ? currentSession.exerciseOrder[currentSession.currentPersonIndex]
-                  : null;
-
-                if (!currentSetPerson) return currentSession;
-
-                const newWeight = Math.max(0, currentSession.currentWeight - 5);
-                const target = getSetPlan(currentExercise, currentMovement)[currentSession.currentSet - 1];
-                const adjustedBaseline =
-                  newWeight -
-                  (userStrategies[currentSetPerson] === "pyramid" ? target.weightOffset : 0);
-
-                return {
-                  ...currentSession,
-                  currentWeight: newWeight,
-                  adjustedBaselines: {
-                    ...currentSession.adjustedBaselines,
-                    [activeWeightKey(currentExercise, currentMovement)]: {
-                      ...(currentSession.adjustedBaselines?.[activeWeightKey(currentExercise, currentMovement)] || {}),
-                      [currentSetPerson]: adjustedBaseline,
-                    },
-                  },
-                };
+                return adjustCurrentWeight({
+                  session: currentSession,
+                  workout: workoutForSession,
+                  userStrategies,
+                  delta: -5,
+                });
               });
             }}
           >
@@ -1409,31 +1065,12 @@ function App() {
             onClick={() => {
               updateStepperSession((currentSession) => {
                 const workoutForSession = currentSession.reorderedWorkout || baseWorkout;
-                const currentExercise = workoutForSession[currentSession.exerciseIndex];
-                const currentMovement = activeMovement(currentExercise, currentSession.currentMovementIndex ?? 0);
-                const currentSetPerson = currentSession.firstPerson
-                  ? currentSession.exerciseOrder[currentSession.currentPersonIndex]
-                  : null;
-
-                if (!currentSetPerson) return currentSession;
-
-                const newWeight = currentSession.currentWeight + 5;
-                const target = getSetPlan(currentExercise, currentMovement)[currentSession.currentSet - 1];
-                const adjustedBaseline =
-                  newWeight -
-                  (userStrategies[currentSetPerson] === "pyramid" ? target.weightOffset : 0);
-
-                return {
-                  ...currentSession,
-                  currentWeight: newWeight,
-                  adjustedBaselines: {
-                    ...currentSession.adjustedBaselines,
-                    [activeWeightKey(currentExercise, currentMovement)]: {
-                      ...(currentSession.adjustedBaselines?.[activeWeightKey(currentExercise, currentMovement)] || {}),
-                      [currentSetPerson]: adjustedBaseline,
-                    },
-                  },
-                };
+                return adjustCurrentWeight({
+                  session: currentSession,
+                  workout: workoutForSession,
+                  userStrategies,
+                  delta: 5,
+                });
               });
             }}
           >
