@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { calculateProgressedBaselineStates } from "../src/baselineProgression.ts";
+import { calculateProgressedBaselineStates, type BaselineProgressionStrategy, type BaselineWorkoutSummary, type UserBaselines, type UserWeights } from "../src/baselineProgression.ts";
 
 const workoutPlan = [{
   id: "leg_press",
@@ -11,7 +11,20 @@ const workoutPlan = [{
   ],
 }];
 
-function completedWorkout(reps: number[], weights: number[]) {
+const compoundWorkoutPlan = [{
+  id: "thigh_machine",
+  name: "Thigh Machine",
+  setPlan: [
+    { reps: 12, weightOffset: -5 },
+    { reps: 10, weightOffset: 0 },
+  ],
+  movements: [
+    { id: "inner", name: "Inner" },
+    { id: "outer", name: "Outer" },
+  ],
+}];
+
+function completedWorkout(reps: number[], weights: number[]): BaselineWorkoutSummary {
   return {
     results: reps.map((repsForSet, index) => ({
       exerciseId: "leg_press",
@@ -25,10 +38,53 @@ function completedWorkout(reps: number[], weights: number[]) {
   };
 }
 
+function exactWorkout(weight: number): BaselineWorkoutSummary {
+  return completedWorkout([15, 12, 10], [weight - 10, weight, weight + 10]);
+}
+
+function simulateWorkouts({
+  strategy,
+  workouts,
+  weight = 100,
+  successStreak = 0,
+}: {
+  strategy: BaselineProgressionStrategy;
+  workouts: BaselineWorkoutSummary[];
+  weight?: number;
+  successStreak?: number;
+}) {
+  let currentProfiles: Record<string, UserWeights> = { Mike: { leg_press: weight } };
+  let currentBaselineStates: Record<string, UserBaselines> = {
+    Mike: { leg_press: { weight, successStreak } },
+  };
+  const reasons = [];
+
+  for (const workout of workouts) {
+    const result = calculateProgressedBaselineStates({
+      currentProfiles,
+      currentBaselineStates,
+      workoutPlan,
+      completedWorkout: workout,
+      baselineProgressionStrategies: { Mike: strategy },
+      userStrategies: { Mike: "pyramid" },
+    });
+
+    currentProfiles = result.updatedProfiles;
+    currentBaselineStates = result.updatedBaselineStates;
+    reasons.push(...result.reasons);
+  }
+
+  return {
+    profiles: currentProfiles,
+    baselines: currentBaselineStates,
+    reasons,
+  };
+}
+
 function calculate({
   weight = 100,
   successStreak = 0,
-  workout = completedWorkout([15, 12, 10], [90, 100, 110]),
+  workout = exactWorkout(weight),
   strategy = "medium" as const,
 } = {}) {
   return calculateProgressedBaselineStates({
@@ -82,6 +138,147 @@ function calculate({
 
   assert.equal(result.updatedBaselineStates.Mike.leg_press.weight, 100);
   assert.equal(result.updatedBaselineStates.Mike.leg_press.successStreak, 0);
+}
+
+{
+  const result = simulateWorkouts({
+    strategy: "fast",
+    workouts: [
+      exactWorkout(100),
+      exactWorkout(100),
+    ],
+  });
+
+  assert.equal(result.baselines.Mike.leg_press.weight, 105);
+  assert.equal(result.baselines.Mike.leg_press.successStreak, 0);
+  assert.equal(result.reasons[0].reason, "fast baseline progression after 2 successful workouts");
+}
+
+{
+  const result = simulateWorkouts({
+    strategy: "medium",
+    workouts: [
+      exactWorkout(100),
+      exactWorkout(100),
+      exactWorkout(100),
+    ],
+  });
+
+  assert.equal(result.baselines.Mike.leg_press.weight, 105);
+  assert.equal(result.baselines.Mike.leg_press.successStreak, 0);
+  assert.equal(result.reasons[0].reason, "medium baseline progression after 3 successful workouts");
+}
+
+{
+  const result = simulateWorkouts({
+    strategy: "slow",
+    workouts: [
+      exactWorkout(100),
+      exactWorkout(100),
+      exactWorkout(100),
+      exactWorkout(100),
+    ],
+  });
+
+  assert.equal(result.baselines.Mike.leg_press.weight, 105);
+  assert.equal(result.baselines.Mike.leg_press.successStreak, 0);
+  assert.equal(result.reasons[0].reason, "slow baseline progression after 4 successful workouts");
+}
+
+{
+  const result = simulateWorkouts({
+    strategy: "medium",
+    workouts: [
+      exactWorkout(100),
+      completedWorkout([15, 12, 10], [100, 110, 120]),
+      exactWorkout(105),
+      exactWorkout(105),
+      exactWorkout(105),
+    ],
+  });
+
+  assert.equal(result.baselines.Mike.leg_press.weight, 115);
+  assert.equal(result.baselines.Mike.leg_press.successStreak, 0);
+  assert.deepEqual(result.reasons.map((reason) => [reason.oldWeight, reason.newWeight]), [
+    [100, 105],
+    [105, 115],
+  ]);
+}
+
+{
+  const result = simulateWorkouts({
+    strategy: "medium",
+    successStreak: 2,
+    workouts: [
+      completedWorkout([10, 8, 6], [90, 100, 110]),
+      exactWorkout(95),
+    ],
+  });
+
+  assert.equal(result.baselines.Mike.leg_press.weight, 95);
+  assert.equal(result.baselines.Mike.leg_press.successStreak, 1);
+  assert.deepEqual(result.reasons.map((reason) => [reason.oldWeight, reason.newWeight]), [
+    [100, 95],
+  ]);
+}
+
+{
+  const result = simulateWorkouts({
+    strategy: "straight",
+    successStreak: 2,
+    workouts: [
+      completedWorkout([15, 12, 10], [130, 140, 150]),
+      completedWorkout([5, 5, 5], [50, 50, 50]),
+      exactWorkout(100),
+    ],
+  });
+
+  assert.equal(result.baselines.Mike.leg_press.weight, 100);
+  assert.equal(result.baselines.Mike.leg_press.successStreak, 2);
+  assert.equal(result.reasons.length, 0);
+}
+
+{
+  const result = calculateProgressedBaselineStates({
+    currentProfiles: { Mike: { inner: 50, outer: 70 } },
+    currentBaselineStates: {
+      Mike: {
+        inner: { weight: 50, successStreak: 1 },
+        outer: { weight: 70, successStreak: 1 },
+      },
+    },
+    workoutPlan: compoundWorkoutPlan,
+    completedWorkout: {
+      results: [
+        { exerciseId: "thigh_machine", exerciseName: "Thigh Machine", movementId: "inner", movementName: "Inner", person: "Mike", setNumber: 1, reps: 12, weight: 45, status: "completed" },
+        { exerciseId: "thigh_machine", exerciseName: "Thigh Machine", movementId: "inner", movementName: "Inner", person: "Mike", setNumber: 2, reps: 10, weight: 50, status: "completed" },
+        { exerciseId: "thigh_machine", exerciseName: "Thigh Machine", movementId: "outer", movementName: "Outer", person: "Mike", setNumber: 1, reps: 12, weight: 85, status: "completed" },
+        { exerciseId: "thigh_machine", exerciseName: "Thigh Machine", movementId: "outer", movementName: "Outer", person: "Mike", setNumber: 2, reps: 10, weight: 90, status: "completed" },
+      ],
+    },
+    baselineProgressionStrategies: { Mike: "fast" },
+    userStrategies: { Mike: "pyramid" },
+  });
+
+  assert.equal(result.updatedBaselineStates.Mike.inner.weight, 55);
+  assert.equal(result.updatedBaselineStates.Mike.inner.successStreak, 0);
+  assert.equal(result.updatedBaselineStates.Mike.outer.weight, 75);
+  assert.equal(result.updatedBaselineStates.Mike.outer.successStreak, 0);
+  assert.deepEqual(result.reasons.map((reason) => reason.exercise), [
+    "Thigh Machine: Inner",
+    "Thigh Machine: Outer",
+  ]);
+}
+
+{
+  const result = calculate({
+    workout: { results: [] },
+    successStreak: 2,
+  });
+
+  assert.equal(result.updatedBaselineStates.Mike.leg_press.weight, 100);
+  assert.equal(result.updatedBaselineStates.Mike.leg_press.successStreak, 2);
+  assert.equal(result.reasons.length, 0);
 }
 
 console.log("Baseline progression tests passed.");

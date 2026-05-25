@@ -3,10 +3,13 @@ import {
   adjustCurrentReps,
   adjustCurrentWeight,
   chooseFirstPerson,
+  completeWarmup,
   currentWorkoutPrompt,
-  initialSession,
+  postponeCurrentExercise,
   recordSetAndAdvance,
+  startWarmup,
   startWorkoutSession,
+  type WorkoutSession,
 } from "../src/workoutEngine.ts";
 import type { Exercise, Person } from "../src/workoutData.ts";
 
@@ -75,13 +78,13 @@ const combo: Exercise = {
   ],
 };
 
-function complete(session: typeof initialSession, workout: Exercise[]) {
+function complete(session: WorkoutSession, workout: Exercise[], status: "completed" | "skipped" = "completed") {
   return recordSetAndAdvance({
     session,
     workout,
     userProfiles: profiles,
     userStrategies: strategies,
-    status: "completed",
+    status,
     completedAt: "2026-05-25T12:00:00.000Z",
     createSessionId: () => "generated-session",
   });
@@ -181,6 +184,90 @@ function complete(session: typeof initialSession, workout: Exercise[]) {
     "Victoria:combo_inner",
     "Victoria:combo_outer",
   ].join(","));
+}
+
+{
+  const workout = [press, row];
+  let session = startWorkoutSession("session-warmup", workout);
+
+  session = startWarmup(session, "2026-05-25T12:00:00.000Z");
+  assert.equal(session.warmupStartedAt, "2026-05-25T12:00:00.000Z");
+  assert.equal(session.exerciseIndex, 0);
+
+  session = completeWarmup(session);
+  assert.equal(session.warmupStartedAt, null);
+  assert.equal(session.exerciseIndex, 1);
+  assert.equal(session.firstPerson, null);
+  assert.equal(session.currentSet, 1);
+}
+
+{
+  const workout = [press, row, combo];
+  const session = {
+    ...startWorkoutSession("session-postpone", workout),
+    exerciseIndex: 1,
+    reorderedWorkout: workout,
+  };
+  const postponed = postponeCurrentExercise(session, workout);
+
+  assert.deepEqual(postponed.reorderedWorkout?.map((exercise) => exercise.id), [
+    "press",
+    "combo",
+    "row",
+  ]);
+
+  const finalExerciseSession = {
+    ...session,
+    exerciseIndex: 2,
+  };
+
+  assert.equal(postponeCurrentExercise(finalExerciseSession, workout), finalExerciseSession);
+}
+
+{
+  const workout = [press];
+  let session = startWorkoutSession("session-skip", workout);
+
+  session = chooseFirstPerson({
+    session,
+    workout,
+    userProfiles: profiles,
+    userStrategies: strategies,
+    firstPerson: "Mike",
+  });
+
+  session = complete(session, workout, "skipped");
+
+  assert.equal(session.results[0].status, "skipped");
+  assert.equal(session.results[0].reps, 0);
+  assert.equal(session.results[0].weight, 90);
+  assert.equal(currentWorkoutPrompt(session, workout).person, "Victoria");
+}
+
+{
+  const workout = [press];
+  let session = startWorkoutSession("session-straight", workout);
+
+  session = chooseFirstPerson({
+    session,
+    workout,
+    userProfiles: profiles,
+    userStrategies: strategies,
+    firstPerson: "Victoria",
+  });
+
+  session = adjustCurrentReps(session, workout, 3);
+  assert.equal(session.currentReps, 15);
+
+  session = complete(session, workout);
+  assert.equal(currentWorkoutPrompt(session, workout).person, "Mike");
+  assert.equal(currentWorkoutPrompt(session, workout).reps, 12);
+
+  session = complete(session, workout);
+  assert.equal(currentWorkoutPrompt(session, workout).person, "Victoria");
+  assert.equal(currentWorkoutPrompt(session, workout).setNumber, 2);
+  assert.equal(currentWorkoutPrompt(session, workout).reps, 15);
+  assert.equal(currentWorkoutPrompt(session, workout).weight, 40);
 }
 
 {
