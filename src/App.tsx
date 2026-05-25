@@ -1,8 +1,8 @@
-import { useEffect, useState, useRef } from "react";
+import { useCallback, useEffect, useState, useRef } from "react";
 import "./App.css";
 import { people, workout, type Person, type Exercise } from "./workoutData";
-import { listenToWorkoutSession, loadCurrentWorkoutSession, saveWorkoutSession } from "./workoutSession";
-import { saveCompletedWorkoutSummary, loadCompletedWorkoutSummaries, loadUserProfiles, saveUserProfile, loadWorkoutPlan, calculateExerciseOutcomes, calculateProgressedUserProfilesFromHistory, type SetResult, type ExerciseOutcomes } from "./workoutSession";
+import { appendWorkoutEvent, listenToWorkoutEvents, listenToWorkoutSession, loadCurrentWorkoutSession } from "./workoutSession";
+import { finalizeCompletedWorkout, loadCompletedWorkoutSummaries, loadCurrentBaselineStates, loadUserProfileSettings, loadWorkoutPlan, calculateExerciseOutcomes, calculateProgressedUserProfilesFromHistory, type BaselineProgressionStrategy, type SetResult, type ExerciseOutcomes, type UserBaselines, type WorkoutEventType } from "./workoutSession";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 
 declare const __APP_VERSION__: string;
@@ -57,12 +57,49 @@ const defaultUserProfiles: Record<Person, Record<string, number>> = {
   },
 };
 
-const userStrategies: Record<Person, WeightStrategy> = {
+function baselineStatesFromWeights(weights: Record<Person, Record<string, number>>): Record<Person, UserBaselines> {
+  return {
+    Mike: Object.fromEntries(
+      Object.entries(weights.Mike).map(([exerciseId, weight]) => [exerciseId, { weight, successStreak: 0 }])
+    ),
+    Victoria: Object.fromEntries(
+      Object.entries(weights.Victoria).map(([exerciseId, weight]) => [exerciseId, { weight, successStreak: 0 }])
+    ),
+  };
+}
+
+function weightsFromBaselineStates(baselines: Record<Person, UserBaselines>) {
+  return {
+    Mike: Object.fromEntries(
+      Object.entries(baselines.Mike).map(([exerciseId, baseline]) => [exerciseId, baseline.weight])
+    ),
+    Victoria: Object.fromEntries(
+      Object.entries(baselines.Victoria).map(([exerciseId, baseline]) => [exerciseId, baseline.weight])
+    ),
+  } as Record<Person, Record<string, number>>;
+}
+
+const defaultUserStrategies: Record<Person, WeightStrategy> = {
   Mike: "pyramid",
   Victoria: "straight",
 };
+const defaultBaselineProgressionStrategies: Record<Person, BaselineProgressionStrategy> = {
+  Mike: "medium",
+  Victoria: "straight",
+};
+type BaselineChangeSymbol = "up" | "same" | "down";
+type BaselineChangeDetail = {
+  symbol: BaselineChangeSymbol;
+  text: string;
+};
+type BaselineChangeRow = {
+  id: string;
+  label: string;
+  changes: Record<Person, BaselineChangeDetail>;
+};
 
 type WorkoutSession = {
+  sessionId?: string;
   started: boolean;
   complete: boolean;
   exerciseIndex: number;
@@ -85,6 +122,7 @@ type WorkoutSession = {
   cancelledAt?: string;
   localRevision?: number;
   lastWriterId?: string;
+  eventSequence?: number;
 };
 
 type WorkoutProgressProps = {
@@ -102,6 +140,81 @@ function activeMovement(exercise: Exercise, movementIndex = 0) {
 
 function activeWeightKey(exercise: Exercise, movement: ActiveMovement | null) {
   return movement?.id ?? exerciseKey(exercise);
+}
+
+function baselineTargetsForWorkout(workoutPlan: Exercise[]) {
+  return workoutPlan
+    .filter((item) => exerciseKey(item) !== "warm_up")
+    .flatMap((item) => {
+      if (item.movements && item.movements.length > 0) {
+        return item.movements.map((movement) => ({
+          id: movement.id,
+          label: `${item.name}: ${movement.name}`,
+        }));
+      }
+
+      return [{
+        id: exerciseKey(item),
+        label: item.name,
+      }];
+    });
+}
+
+function baselineChangeSymbol(oldWeight: number, newWeight: number): BaselineChangeSymbol {
+  if (newWeight > oldWeight) return "up";
+  if (newWeight < oldWeight) return "down";
+  return "same";
+}
+
+function baselineChangeLabel(change: BaselineChangeSymbol) {
+  if (change === "up") return "+";
+  if (change === "down") return "-";
+  return "=";
+}
+
+function baselineSuccessTarget(strategy: BaselineProgressionStrategy) {
+  if (strategy === "fast") return 2;
+  if (strategy === "medium") return 3;
+  if (strategy === "slow") return 4;
+  return null;
+}
+
+function formatBaselineChangeDetail(
+  oldWeight: number,
+  oldStreak: number,
+  newWeight: number,
+  newStreak: number,
+  strategy: BaselineProgressionStrategy
+): BaselineChangeDetail {
+  const symbol = baselineChangeSymbol(oldWeight, newWeight);
+
+  if (symbol !== "same") {
+    return {
+      symbol,
+      text: `${oldWeight} -> ${newWeight} lb`,
+    };
+  }
+
+  const target = baselineSuccessTarget(strategy);
+
+  if (!target) {
+    return {
+      symbol,
+      text: "No auto change",
+    };
+  }
+
+  if (newStreak > oldStreak) {
+    return {
+      symbol,
+      text: `Streak ${newStreak}/${target}`,
+    };
+  }
+
+  return {
+    symbol,
+    text: `Streak ${newStreak}/${target}`,
+  };
 }
 
 function resultMatchesExercise(result: SetResult, exercise: Exercise) {
@@ -164,6 +277,10 @@ function formatSeconds(seconds: number) {
   return `${String(minutes).padStart(2, "0")}:${String(remainder).padStart(2, "0")}`;
 }
 
+function createSessionId() {
+  return `workout-${new Date().toISOString().replace(/[^0-9]/g, "").slice(0, 14)}-${CLIENT_ID.slice(-6)}`;
+}
+
 const initialSession: WorkoutSession = {
   started: false,
   complete: false,
@@ -184,8 +301,15 @@ function App() {
   const [baseWorkout, setBaseWorkout] = useState<Exercise[]>(workout);
   const [activeRemoteSession, setActiveRemoteSession] = useState<WorkoutSession | null>(null);
   const [showDetails, setShowDetails] = useState(false);
+  const [showBaselineChanges, setShowBaselineChanges] = useState(false);
+  const [baselineChangeRows, setBaselineChangeRows] = useState<BaselineChangeRow[]>([]);
   const [completedWorkouts, setCompletedWorkouts] = useState<CompletedWorkout[]>([]);
   const [userProfiles, setUserProfiles] = useState<Record<Person, Record<string, number>>>(defaultUserProfiles);
+  const [userBaselineStates, setUserBaselineStates] =
+    useState<Record<Person, UserBaselines>>(baselineStatesFromWeights(defaultUserProfiles));
+  const [userStrategies, setUserStrategies] = useState<Record<Person, WeightStrategy>>(defaultUserStrategies);
+  const [baselineProgressionStrategies, setBaselineProgressionStrategies] =
+    useState<Record<Person, BaselineProgressionStrategy>>(defaultBaselineProgressionStrategies);
   const [viewingPast, setViewingPast] = useState(false);
   const [pastSession, setPastSession] = useState<WorkoutSession | null>(null);
   const [warmupSeconds, setWarmupSeconds] = useState(0);
@@ -195,6 +319,7 @@ function App() {
   const activeRemoteSessionRef = useRef<WorkoutSession | null>(null);
   const viewingPastRef = useRef(viewingPast);
   const latestLocalRevisionRef = useRef(0);
+  const latestEventSequenceRef = useRef(0);
   const pendingStepperSaveRef = useRef<number | null>(null);
   const pendingStepperSessionRef = useRef<WorkoutSession | null>(null);
   const clientIdRef = useRef(CLIENT_ID);
@@ -221,10 +346,10 @@ function App() {
     return remoteSession?.status === "active" && !remoteSession.complete;
   }
 
-  function setLocalSession(nextSession: WorkoutSession) {
+  const setLocalSession = useCallback((nextSession: WorkoutSession) => {
     sessionRef.current = nextSession;
     setSession(nextSession);
-  }
+  }, []);
 
   function prepareLocalSession(nextSession: WorkoutSession) {
     const nextRevision =
@@ -248,22 +373,81 @@ function App() {
     pendingStepperSessionRef.current = null;
   }
 
-  async function savePreparedSession(nextSession: WorkoutSession) {
-    await saveWorkoutSession(nextSession);
+  const applyIncomingSession = useCallback((incoming: WorkoutSession) => {
+    const incomingRevision = incoming.localRevision ?? 0;
+    const incomingEventSequence = incoming.eventSequence ?? 0;
+
+    latestLocalRevisionRef.current = Math.max(
+      latestLocalRevisionRef.current,
+      incomingRevision
+    );
+    latestEventSequenceRef.current = Math.max(
+      latestEventSequenceRef.current,
+      incomingEventSequence
+    );
+
+    const isActive = incoming.status === "active" && !incoming.complete;
+    const isStale =
+      isActive &&
+      incoming.updatedAt &&
+      new Date(incoming.updatedAt).getTime() <
+      Date.now() - 12 * 60 * 60 * 1000;
+
+    if (incoming.status === "completed" || incoming.complete) {
+      setActiveRemoteSession(null);
+      activeRemoteSessionRef.current = null;
+
+      if (sessionRef.current.started && !viewingPastRef.current) {
+        setLocalSession(incoming);
+      }
+
+      return;
+    }
+
+    if (isActive && !isStale) {
+      setActiveRemoteSession(incoming);
+      activeRemoteSessionRef.current = incoming;
+
+      if (sessionRef.current.started && !sessionRef.current.complete) {
+        setLocalSession(incoming);
+      }
+    } else {
+      setActiveRemoteSession(null);
+      activeRemoteSessionRef.current = null;
+
+      if (incoming.status === "cancelled") {
+        setLocalSession(initialSession);
+      }
+    }
+  }, [setLocalSession]);
+
+  async function savePreparedSession(nextSession: WorkoutSession, eventType: WorkoutEventType = "updateSession") {
+    const actorId = nextSession.firstPerson
+      ? nextSession.exerciseOrder[nextSession.currentPersonIndex]
+      : undefined;
+
+    const event = await appendWorkoutEvent(eventType, {
+      sessionId: nextSession.sessionId,
+      actorId,
+      clientId: clientIdRef.current,
+      session: nextSession,
+    });
+
+    latestEventSequenceRef.current = Math.max(latestEventSequenceRef.current, event.sequence);
   }
 
-  async function commitSession(nextSession: WorkoutSession, action?: PendingAction) {
+  async function commitSession(nextSession: WorkoutSession, action?: PendingAction, eventType: WorkoutEventType = "updateSession") {
     clearPendingStepperSave();
 
     const prepared = prepareLocalSession(nextSession);
-    setLocalSession(prepared);
 
     if (action) {
       setPendingAction(action);
     }
 
     try {
-      await savePreparedSession(prepared);
+      await savePreparedSession(prepared, eventType);
+      setLocalSession(prepared);
     } finally {
       if (action) {
         setPendingAction((current) => current === action ? null : current);
@@ -287,7 +471,7 @@ function App() {
 
       if (!sessionToSave) return;
 
-      savePreparedSession(sessionToSave).catch((error) => {
+      savePreparedSession(sessionToSave, "adjustSet").catch((error) => {
         console.error("Failed to save stepper update:", error);
       });
     }, 450);
@@ -306,50 +490,27 @@ function App() {
   useEffect(() => {
     const unsubscribe = listenToWorkoutSession((data) => {
       const incoming = data as WorkoutSession;
-      const incomingRevision = incoming.localRevision ?? 0;
-
-      latestLocalRevisionRef.current = Math.max(
-        latestLocalRevisionRef.current,
-        incomingRevision
-      );
-
-      const isActive = incoming.status === "active" && !incoming.complete;
-      const isStale =
-        isActive &&
-        incoming.updatedAt &&
-        new Date(incoming.updatedAt).getTime() <
-        Date.now() - 12 * 60 * 60 * 1000;
-
-      if (incoming.status === "completed" || incoming.complete) {
-        setActiveRemoteSession(null);
-        activeRemoteSessionRef.current = null;
-
-        if (sessionRef.current.started && !viewingPastRef.current) {
-          setLocalSession(incoming);
-        }
-
-        return;
-      }
-
-      if (isActive && !isStale) {
-        setActiveRemoteSession(incoming);
-        activeRemoteSessionRef.current = incoming;
-
-        if (sessionRef.current.started && !sessionRef.current.complete) {
-          setLocalSession(incoming);
-        }
-      } else {
-        setActiveRemoteSession(null);
-        activeRemoteSessionRef.current = null;
-
-        if (incoming.status === "cancelled") {
-          setLocalSession(initialSession);
-        }
-      }
+      applyIncomingSession(incoming);
     });
 
     return () => unsubscribe();
-  }, []);
+  }, [applyIncomingSession]);
+
+  useEffect(() => {
+    const unsubscribe = listenToWorkoutEvents((event) => {
+      const eventSession = event.payload.session as WorkoutSession | undefined;
+
+      if (!eventSession) return;
+      if (sessionRef.current.sessionId && eventSession.sessionId !== sessionRef.current.sessionId) return;
+
+      applyIncomingSession({
+        ...eventSession,
+        eventSequence: event.sequence,
+      });
+    });
+
+    return () => unsubscribe();
+  }, [applyIncomingSession]);
 
   useEffect(() => {
     loadCompletedWorkoutSummaries().then(setCompletedWorkouts);
@@ -369,10 +530,29 @@ function App() {
   }, []);
 
   useEffect(() => {
-    loadUserProfiles(defaultUserProfiles).then((profiles) => {
-      setUserProfiles({
-        Mike: { ...defaultUserProfiles.Mike, ...profiles.Mike },
-        Victoria: { ...defaultUserProfiles.Victoria, ...profiles.Victoria },
+    const defaultBaselineStates = baselineStatesFromWeights(defaultUserProfiles);
+
+    Promise.all([
+      loadCurrentBaselineStates(defaultUserProfiles),
+      loadUserProfileSettings({
+        progressionStrategies: defaultUserStrategies,
+        baselineProgressionStrategies: defaultBaselineProgressionStrategies,
+      }),
+    ]).then(([baselineStates, { progressionStrategies, baselineProgressionStrategies }]) => {
+      const nextBaselineStates = {
+        Mike: { ...defaultBaselineStates.Mike, ...baselineStates.Mike },
+        Victoria: { ...defaultBaselineStates.Victoria, ...baselineStates.Victoria },
+      };
+
+      setUserBaselineStates(nextBaselineStates);
+      setUserProfiles(weightsFromBaselineStates(nextBaselineStates));
+      setUserStrategies({
+        Mike: progressionStrategies.Mike ?? defaultUserStrategies.Mike,
+        Victoria: progressionStrategies.Victoria ?? defaultUserStrategies.Victoria,
+      });
+      setBaselineProgressionStrategies({
+        Mike: baselineProgressionStrategies.Mike ?? defaultBaselineProgressionStrategies.Mike,
+        Victoria: baselineProgressionStrategies.Victoria ?? defaultBaselineProgressionStrategies.Victoria,
       });
     });
   }, []);
@@ -409,7 +589,7 @@ function App() {
     activeRemoteSessionRef.current = null;
     setLocalSession(initialSession);
 
-    savePreparedSession(cancelledSession).catch((error) => {
+    savePreparedSession(cancelledSession, "cancelWorkout").catch((error) => {
       console.error("Failed to cancel workout:", error);
     });
   }
@@ -595,6 +775,7 @@ function App() {
 
         newSession = {
           ...newSession,
+          sessionId: newSession.sessionId ?? createSessionId(),
           complete: true,
           status: "completed",
           completedAt: new Date().toISOString(),
@@ -618,19 +799,80 @@ function App() {
           userProfiles,
           userStrategies
         );
-
-        // Save summary (fire-and-forget is fine)
-        saveCompletedWorkoutSummary({
-          completedAt: new Date().toISOString(),
+        const completedAt = new Date().toISOString();
+        const completedSessionId = newSession.sessionId ?? createSessionId();
+        newSession.sessionId = completedSessionId;
+        const completedSummary = {
+          sessionId: completedSessionId,
+          completedAt,
           totalSets,
           totalWeightLifted,
           exerciseOutcomes,
           results: newSession.results,
-        });
+        };
+        const { updatedProfiles, updatedBaselineStates } = calculateProgressedUserProfilesFromHistory(
+          userProfiles,
+          userBaselineStates,
+          effectiveWorkout,
+          [...completedWorkouts, completedSummary],
+          baselineProgressionStrategies,
+          userStrategies
+        );
+        const changeRows = baselineTargetsForWorkout(effectiveWorkout).map((target) => ({
+          id: target.id,
+          label: target.label,
+          changes: {
+            Mike: formatBaselineChangeDetail(
+              userBaselineStates.Mike[target.id]?.weight ?? userProfiles.Mike[target.id] ?? 0,
+              userBaselineStates.Mike[target.id]?.successStreak ?? 0,
+              updatedBaselineStates.Mike[target.id]?.weight ?? updatedProfiles.Mike[target.id] ?? userProfiles.Mike[target.id] ?? 0,
+              updatedBaselineStates.Mike[target.id]?.successStreak ?? 0,
+              baselineProgressionStrategies.Mike
+            ),
+            Victoria: formatBaselineChangeDetail(
+              userBaselineStates.Victoria[target.id]?.weight ?? userProfiles.Victoria[target.id] ?? 0,
+              userBaselineStates.Victoria[target.id]?.successStreak ?? 0,
+              updatedBaselineStates.Victoria[target.id]?.weight ?? updatedProfiles.Victoria[target.id] ?? userProfiles.Victoria[target.id] ?? 0,
+              updatedBaselineStates.Victoria[target.id]?.successStreak ?? 0,
+              baselineProgressionStrategies.Victoria
+            ),
+          },
+        }));
+
+        try {
+          const finalizeResult = await finalizeCompletedWorkout({
+            sessionId: completedSessionId,
+            summary: completedSummary,
+            baselineStates: updatedBaselineStates,
+            session: newSession,
+          });
+
+          if (finalizeResult.created) {
+            setUserBaselineStates(updatedBaselineStates);
+            setUserProfiles(updatedProfiles);
+            setBaselineChangeRows(changeRows);
+            setShowBaselineChanges(true);
+            setCompletedWorkouts((current) => [
+              ...current.filter((workout) => workout.id !== newSession.sessionId),
+              { id: completedSessionId, ...completedSummary },
+            ]);
+          } else {
+            setBaselineChangeRows([]);
+            setShowBaselineChanges(false);
+          }
+        } catch (error) {
+          console.error("Failed to finalize workout:", error);
+          return;
+        }
       }
     }
 
-    await commitSession(newSession, action);
+    if (newSession.complete) {
+      setLocalSession(prepareLocalSession(newSession));
+      setPendingAction((current) => current === action ? null : current);
+    } else {
+    await commitSession(newSession, action, status === "skipped" ? "skipSet" : "completeSet");
+    }
   }
 
   if (session.complete || viewingPast) {
@@ -661,6 +903,49 @@ function App() {
         <section className="card summary-card">
           <h1>{viewingPast ? "Workout Results" : "Workout Complete 🎉"}</h1>
           <p className="subtitle">{viewingPast ? "Past workout summary" : "Nice work, both of you."}</p>
+
+          {!viewingPast && showBaselineChanges && (
+            <div className="modal-backdrop" role="presentation">
+              <div className="modal" role="dialog" aria-modal="true" aria-labelledby="baseline-changes-title">
+                <h2 id="baseline-changes-title">Baseline Updates</h2>
+
+                <table className="baseline-table">
+                  <thead>
+                    <tr>
+                      <th>Exercise</th>
+                      {people.map((person) => (
+                        <th key={person}>{person}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {baselineChangeRows.map((row) => (
+                      <tr key={row.id}>
+                        <td>{row.label}</td>
+                        {people.map((person) => (
+                          <td key={person} className={`baseline-change ${row.changes[person].symbol}`}>
+                            <div className="baseline-symbol">
+                              {baselineChangeLabel(row.changes[person].symbol)}
+                            </div>
+                            <div className="baseline-detail">
+                              {row.changes[person].text}
+                            </div>
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+
+                <button
+                  className="primary-button"
+                  onClick={() => setShowBaselineChanges(false)}
+                >
+                  OK
+                </button>
+              </div>
+            </div>
+          )}
 
           <div className="workout-detail">
             <p>
@@ -768,42 +1053,15 @@ function App() {
                   return;
                 }
 
-                // Calculate weight progression based on history
-                const { updatedProfiles } = calculateProgressedUserProfilesFromHistory(
-                  userProfiles,
-                  baseWorkout,
-                  completedWorkouts
-                );
-
-                // If weights changed, update state and save to Firestore
-                let profilesChanged = false;
-                for (const person of ["Mike", "Victoria"] as const) {
-                  for (const exercise of baseWorkout) {
-                    const key = exerciseKey(exercise);
-                    const oldWeight = getProfileWeight(userProfiles, person, exercise);
-                    const newWeight = updatedProfiles[person][key] ?? updatedProfiles[person][exercise.name] ?? 0;
-                    if (oldWeight !== newWeight) {
-                      profilesChanged = true;
-                      break;
-                    }
-                  }
-                  if (profilesChanged) break;
-                }
-
-                if (profilesChanged) {
-                  setUserProfiles(updatedProfiles);
-                  await saveUserProfile("Mike", updatedProfiles.Mike);
-                  await saveUserProfile("Victoria", updatedProfiles.Victoria);
-                }
-
                 const newSession = {
-                  ...sessionRef.current,
+                  ...initialSession,
+                  sessionId: createSessionId(),
                   started: true,
                   status: "active" as const,
                   reorderedWorkout: baseWorkout,
                 };
 
-                await commitSession(newSession, "start");
+                await commitSession(newSession, "start", "startWorkout");
               } catch (error) {
                 console.error("Failed to save session:", error);
               } finally {

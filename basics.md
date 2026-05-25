@@ -1,28 +1,28 @@
 # Basics
 
-Quick commands for building, running, and deploying the app.
+Quick commands for building, running, seeding, and deploying the app.
 
 ## Project Folder
 
-From PowerShell:
+From bash:
 
-```powershell
-cd D:\projects\it-takes-two\it-takes-two
+```bash
+cd /d/projects/it-takes-two/it-takes-two
 ```
 
 ## Install Dependencies
 
 Run this if `node_modules` is missing or dependencies changed:
 
-```powershell
+```bash
 npm install
 ```
 
 ## Run Locally
 
-Start the Vite dev server:
+Start the Vite dev server using the normal production collections:
 
-```powershell
+```bash
 npm run dev
 ```
 
@@ -32,19 +32,34 @@ Open the local URL Vite prints, usually:
 http://localhost:5173
 ```
 
+For sync/database redesign work, run against the `tmp_` Firestore collections:
+
+```bash
+npm run dev:tmp
+```
+
+The tmp script automatically uses collection names like `tmp_workoutSessions`,
+`tmp_workoutPlans`, `tmp_userProfiles`, and `tmp_currentBaselines`.
+
 ## Build
 
-Create a production build in `dist`:
+Create a production build in `dist` using the normal production collections:
 
-```powershell
+```bash
 npm run build
+```
+
+Create a production-style build using the `tmp_` Firestore collections:
+
+```bash
+npm run build:tmp
 ```
 
 ## Preview the Production Build Locally
 
 After building, serve the built `dist` folder locally:
 
-```powershell
+```bash
 npm run preview
 ```
 
@@ -52,6 +67,12 @@ Open the local URL Vite prints, usually:
 
 ```text
 http://localhost:4173
+```
+
+Build and preview the `tmp_` version locally:
+
+```bash
+npm run preview:tmp
 ```
 
 ## Deploy to Firebase Hosting
@@ -63,36 +84,66 @@ Project: it-takes-two-5794c
 Public folder: dist
 ```
 
-Build first:
+Deploy the normal production app:
 
-```powershell
-npm run build
+```bash
+npm run deploy
 ```
 
-Then deploy the built app:
+Deploy the `tmp_` sync-work version to a Firebase Hosting preview channel:
 
-```powershell
-npx -y firebase-tools@latest deploy --only hosting
+```bash
+npm run deploy:tmp-preview
 ```
+
+## Seed Workout Plan Data
+
+Seed the normal production collections:
+
+```bash
+npm run seed:workout-plan
+```
+
+Seed the `tmp_` collections for sync/database redesign work:
+
+```bash
+npm run seed:workout-plan:tmp
+```
+
+Reset runtime workout data and seed production from a pristine setup:
+
+```bash
+npm run seed:workout-plan:reset
+```
+
+Reset runtime workout data and seed the `tmp_` collections:
+
+```bash
+npm run seed:workout-plan:tmp:reset
+```
+
+The reset scripts delete `workoutSessions` and `completedWorkouts` for the
+target collection prefix, then rewrite workout plans, exercises, user profiles,
+and current baselines.
 
 If Firebase asks you to sign in:
 
-```powershell
-npx -y firebase-tools@latest login
+```bash
+firebase login
 ```
 
 ## Optional: Firebase Hosting Emulator
 
 Build first:
 
-```powershell
+```bash
 npm run build
 ```
 
 Then serve Firebase Hosting locally:
 
-```powershell
-npx -y firebase-tools@latest emulators:start --only hosting
+```bash
+firebase emulators:start --only hosting
 ```
 
 Open:
@@ -105,12 +156,12 @@ http://localhost:5000
 
 Check the current Git branch:
 
-```powershell
+```bash
 git status --short --branch
 ```
 
 Run lint:
 
-```powershell
+```bash
 npm run lint
 ```

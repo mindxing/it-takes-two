@@ -11,7 +11,7 @@ export type Movement = {
   id: string;
   name: string;
   defaultReps?: number;
-  defaultWeight: Record<Person, number>;
+  defaultWeight?: Record<Person, number>;
   setPlan?: SetTarget[];
   reps?: string;
   notes?: string;
@@ -24,7 +24,7 @@ export type Exercise = {
   sets: number;
   reps: string;
   defaultReps: number;
-  defaultWeight: Record<Person, number>;
+  defaultWeight?: Record<Person, number>;
   setPlan: SetTarget[];
   notes?: string;
   movements?: Movement[];

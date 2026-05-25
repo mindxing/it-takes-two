@@ -1,8 +1,41 @@
-import { db } from "./firebase";
-import { addDoc, collection, getDocs, orderBy, query, doc, onSnapshot, setDoc, getDoc } from "firebase/firestore";
+import { collectionName, db } from "./firebase";
+import { addDoc, collection, getDocs, orderBy, query, doc, onSnapshot, setDoc, getDoc, runTransaction } from "firebase/firestore";
 import type { Person, Exercise as WorkoutExercise } from "./workoutData";
+import {
+  calculateProgressedBaselineStates,
+  type BaselineProgressionStrategy,
+  type ProgressionReason,
+  type UserBaselines,
+  type UserWeights,
+} from "./baselineProgression";
+
+export type {
+  BaselineProgressionStrategy,
+  ProgressionReason,
+  UserBaselines,
+  UserWeights,
+} from "./baselineProgression";
 
 export const demoSessionId = "demo";
+export type WorkoutEventType =
+  | "startWorkout"
+  | "updateSession"
+  | "adjustSet"
+  | "completeSet"
+  | "skipSet"
+  | "cancelWorkout"
+  | "completeWorkout";
+
+export type WorkoutEvent = {
+  id: string;
+  sequence: number;
+  type: WorkoutEventType;
+  sessionId?: string;
+  actorId?: string;
+  clientId?: string;
+  createdAt: string;
+  payload: Record<string, unknown>;
+};
 
 function removeUndefinedValues(value: unknown): unknown {
   if (Array.isArray(value)) {
@@ -31,21 +64,108 @@ export function saveWorkoutSession(session: unknown) {
     prepared.createdAt = now;
   }
 
-  return setDoc(doc(db, "workoutSessions", demoSessionId), prepared, { merge: true });
+  return setDoc(doc(db, collectionName("workoutSessions"), demoSessionId), prepared, { merge: true });
+}
+
+export function appendWorkoutEvent(
+  type: WorkoutEventType,
+  event: {
+    sessionId?: string;
+    actorId?: string;
+    clientId?: string;
+    payload?: Record<string, unknown>;
+    session?: unknown;
+  }
+) {
+  const sessionRef = doc(db, collectionName("workoutSessions"), demoSessionId);
+  const now = new Date().toISOString();
+
+  return runTransaction(db, async (transaction) => {
+    const sessionSnapshot = await transaction.get(sessionRef);
+    const currentSequence = sessionSnapshot.exists()
+      ? Number(sessionSnapshot.data().eventSequence ?? 0)
+      : 0;
+    const sequence = currentSequence + 1;
+    const eventId = String(sequence).padStart(8, "0");
+    const eventPayload = removeUndefinedValues({
+      ...(event.payload ?? {}),
+      session: event.session,
+    }) as Record<string, unknown>;
+    const preparedSession = event.session
+      ? removeUndefinedValues({
+        ...(event.session as Record<string, unknown>),
+        eventSequence: sequence,
+        updatedAt: now,
+      }) as Record<string, unknown>
+      : null;
+
+    transaction.set(doc(collection(sessionRef, "events"), eventId), removeUndefinedValues({
+      sequence,
+      type,
+      sessionId: event.sessionId,
+      actorId: event.actorId,
+      clientId: event.clientId,
+      createdAt: now,
+      payload: eventPayload,
+    }) as Record<string, unknown>);
+
+    if (preparedSession) {
+      if (!preparedSession.createdAt) {
+        preparedSession.createdAt = now;
+      }
+
+      transaction.set(sessionRef, preparedSession, { merge: true });
+    } else {
+      transaction.set(sessionRef, { eventSequence: sequence, updatedAt: now }, { merge: true });
+    }
+
+    return { sequence, eventId };
+  });
+}
+
+export function listenToWorkoutEvents(onEvent: (event: WorkoutEvent) => void) {
+  const eventsQuery = query(
+    collection(db, collectionName("workoutSessions"), demoSessionId, "events"),
+    orderBy("sequence", "asc")
+  );
+
+  return onSnapshot(
+    eventsQuery,
+    (snapshot) => {
+      snapshot.docChanges().forEach((change) => {
+        if (change.type !== "added") return;
+
+        const data = change.doc.data() as Omit<WorkoutEvent, "id">;
+        onEvent({
+          id: change.doc.id,
+          ...data,
+        });
+      });
+    },
+    (error) => {
+      console.error("Failed to listen to workout events:", error);
+    }
+  );
 }
 
 export function listenToWorkoutSession(
   onSessionChange: (session: unknown) => void
 ) {
-  return onSnapshot(doc(db, "workoutSessions", demoSessionId), (snapshot) => {
-    if (snapshot.exists()) {
-      onSessionChange(snapshot.data());
+  return onSnapshot(
+    doc(db, collectionName("workoutSessions"), demoSessionId),
+    (snapshot) => {
+      if (snapshot.exists()) {
+        onSessionChange(snapshot.data());
+      }
+    },
+    (error) => {
+      console.error("Failed to listen to workout session:", error);
     }
-  });
+  );
 }
 
 export async function loadCurrentWorkoutSession() {
-  const snapshot = await getDoc(doc(db, "workoutSessions", demoSessionId));
+  const snapshot = await getDoc(doc(db, collectionName("workoutSessions"), demoSessionId));
   return snapshot.exists() ? snapshot.data() : null;
 }
 
@@ -56,11 +176,11 @@ export function saveCompletedWorkoutSummary(summary: {
   exerciseOutcomes?: Record<string, Record<string, "exact" | "up" | "down" | "neutral">>;
   results: SetResult[];
 }) {
-  return addDoc(collection(db, "completedWorkouts"), summary);
+  return addDoc(collection(db, collectionName("completedWorkouts")), summary);
 }
 
 export async function loadWorkoutPlan(fallbackWorkout: WorkoutExercise[]): Promise<WorkoutExercise[]> {
-  const planDoc = await getDoc(doc(db, "workoutPlans", "default"));
+  const planDoc = await getDoc(doc(db, collectionName("workoutPlans"), "default"));
 
   if (!planDoc.exists()) {
     return fallbackWorkout;
@@ -94,7 +214,7 @@ export async function loadWorkoutPlan(fallbackWorkout: WorkoutExercise[]): Promi
 
         if (!exerciseId) return null;
 
-        const exerciseDoc = await getDoc(doc(db, "exercises", exerciseId));
+        const exerciseDoc = await getDoc(doc(db, collectionName("exercises"), exerciseId));
         const exerciseData = exerciseDoc.exists()
           ? (exerciseDoc.data() as Partial<WorkoutExercise> & { active?: boolean })
           : {};
@@ -123,6 +243,7 @@ export type ExerciseOutcome = "exact" | "up" | "down" | "neutral";
 export type ExerciseOutcomes = Record<string, Record<string, ExerciseOutcome>>;
 
 export type CompletedWorkoutSummary = {
+  sessionId?: string;
   completedAt: string;
   totalSets: number;
   totalWeightLifted: number;
@@ -132,7 +253,7 @@ export type CompletedWorkoutSummary = {
 
 export async function loadCompletedWorkoutSummaries() {
   const q = query(
-    collection(db, "completedWorkouts"),
+    collection(db, collectionName("completedWorkouts")),
     orderBy("completedAt", "asc")
   );
 
@@ -144,32 +265,212 @@ export async function loadCompletedWorkoutSummaries() {
   }));
 }
 
-export type UserWeights = Record<string, number>;
+export type UserProgressionStrategy = "pyramid" | "straight";
+export type UserProfileSettings = {
+  progressionStrategies: Record<string, UserProgressionStrategy>;
+  baselineProgressionStrategies: Record<string, BaselineProgressionStrategy>;
+};
+type StoredBaselineValue = number | { weight?: unknown; successStreak?: unknown };
+
+function isUserProgressionStrategy(value: unknown): value is UserProgressionStrategy {
+  return value === "pyramid" || value === "straight";
+}
+
+function isBaselineProgressionStrategy(value: unknown): value is BaselineProgressionStrategy {
+  return value === "straight" || value === "slow" || value === "medium" || value === "fast";
+}
 
 export async function loadUserProfiles(defaults: Record<string, UserWeights>): Promise<Record<string, UserWeights>> {
-  const profiles: Record<string, UserWeights> = {};
+  return loadCurrentBaselines(defaults);
+}
 
-  const mikeDoc = await getDoc(doc(db, "userProfiles", "Mike"));
-  if (mikeDoc.exists()) {
-    profiles.Mike = mikeDoc.data().weights || {};
-  } else {
-    await saveUserProfile("Mike", defaults.Mike);
-    profiles.Mike = defaults.Mike;
+function defaultProgressionStrategy(person: string): UserProgressionStrategy {
+  return person === "Victoria" ? "straight" : "pyramid";
+}
+
+function defaultBaselineProgressionStrategy(person: string): BaselineProgressionStrategy {
+  return person === "Victoria" ? "straight" : "medium";
+}
+
+function parseStoredBaselines(baselines: Record<string, StoredBaselineValue> | undefined): UserBaselines {
+  const parsedBaselines: UserBaselines = {};
+
+  if (!baselines) {
+    return parsedBaselines;
   }
 
-  const victoriaDoc = await getDoc(doc(db, "userProfiles", "Victoria"));
-  if (victoriaDoc.exists()) {
-    profiles.Victoria = victoriaDoc.data().weights || {};
-  } else {
-    await saveUserProfile("Victoria", defaults.Victoria);
-    profiles.Victoria = defaults.Victoria;
+  for (const [exerciseId, baseline] of Object.entries(baselines)) {
+    if (typeof baseline === "number") {
+      parsedBaselines[exerciseId] = { weight: baseline, successStreak: 0 };
+    } else if (baseline && typeof baseline.weight === "number") {
+      parsedBaselines[exerciseId] = {
+        weight: baseline.weight,
+        successStreak: typeof baseline.successStreak === "number" ? baseline.successStreak : 0,
+      };
+    }
   }
 
-  return profiles;
+  return parsedBaselines;
+}
+
+export async function loadCurrentBaselines(defaults: Record<string, UserWeights>): Promise<Record<string, UserWeights>> {
+  const baselineStates = await loadCurrentBaselineStates(defaults);
+  const weights: Record<string, UserWeights> = {};
+
+  for (const [person, baselines] of Object.entries(baselineStates)) {
+    weights[person] = Object.fromEntries(
+      Object.entries(baselines).map(([exerciseId, baseline]) => [exerciseId, baseline.weight])
+    );
+  }
+
+  return weights;
+}
+
+export async function loadCurrentBaselineStates(defaults: Record<string, UserWeights>): Promise<Record<string, UserBaselines>> {
+  const baselineStates: Record<string, UserBaselines> = {};
+
+  for (const person of Object.keys(defaults)) {
+    const baselineDoc = await getDoc(doc(db, collectionName("currentBaselines"), person));
+
+    if (baselineDoc.exists()) {
+      const baselineData = baselineDoc.data() as {
+        baselines?: Record<string, StoredBaselineValue>;
+      };
+
+      baselineStates[person] = parseStoredBaselines(baselineData.baselines);
+    } else {
+      baselineStates[person] = {};
+    }
+  }
+
+  return baselineStates;
+}
+
+export async function loadUserProfileSettings(defaults: {
+  progressionStrategies: Record<string, UserProgressionStrategy>;
+  baselineProgressionStrategies: Record<string, BaselineProgressionStrategy>;
+}): Promise<UserProfileSettings> {
+  const progressionStrategies: Record<string, UserProgressionStrategy> = {};
+  const baselineProgressionStrategies: Record<string, BaselineProgressionStrategy> = {};
+
+  for (const person of Object.keys(defaults.progressionStrategies)) {
+    const profileDoc = await getDoc(doc(db, collectionName("userProfiles"), person));
+
+    if (profileDoc.exists()) {
+      const profile = profileDoc.data() as {
+        progressionStrategy?: unknown;
+        baselineProgressionStrategy?: unknown;
+      };
+
+      progressionStrategies[person] = isUserProgressionStrategy(profile.progressionStrategy)
+        ? profile.progressionStrategy
+        : defaults.progressionStrategies[person] ?? defaultProgressionStrategy(person);
+      baselineProgressionStrategies[person] = isBaselineProgressionStrategy(profile.baselineProgressionStrategy)
+        ? profile.baselineProgressionStrategy
+        : defaults.baselineProgressionStrategies[person] ?? defaultBaselineProgressionStrategy(person);
+    } else {
+      progressionStrategies[person] = defaults.progressionStrategies[person] ?? defaultProgressionStrategy(person);
+      baselineProgressionStrategies[person] = defaults.baselineProgressionStrategies[person] ?? defaultBaselineProgressionStrategy(person);
+    }
+  }
+
+  return { progressionStrategies, baselineProgressionStrategies };
+}
+
+function prepareStoredBaselines(baselines: UserBaselines) {
+  return Object.fromEntries(
+    Object.entries(baselines).map(([exerciseId, baseline]) => [
+      exerciseId,
+      {
+        weight: baseline.weight,
+        successStreak: baseline.successStreak,
+      },
+    ])
+  );
+}
+
+export function saveCurrentBaselineStates(person: string, baselines: UserBaselines) {
+  return setDoc(doc(db, collectionName("currentBaselines"), person), {
+    userId: person,
+    baselines: prepareStoredBaselines(baselines),
+  });
+}
+
+export async function finalizeCompletedWorkout({
+  sessionId,
+  summary,
+  baselineStates,
+  session,
+}: {
+  sessionId: string;
+  summary: CompletedWorkoutSummary;
+  baselineStates: Record<string, UserBaselines>;
+  session: unknown;
+}) {
+  const completedRef = doc(db, collectionName("completedWorkouts"), sessionId);
+  const sessionRef = doc(db, collectionName("workoutSessions"), demoSessionId);
+  const now = new Date().toISOString();
+  const preparedSession = removeUndefinedValues({
+    ...(session as Record<string, unknown>),
+    sessionId,
+    status: "completed",
+    complete: true,
+    updatedAt: now,
+  }) as Record<string, unknown>;
+
+  return runTransaction(db, async (transaction) => {
+    const completedSnapshot = await transaction.get(completedRef);
+    const sessionSnapshot = await transaction.get(sessionRef);
+    const sequence = (sessionSnapshot.exists() ? Number(sessionSnapshot.data().eventSequence ?? 0) : 0) + 1;
+
+    if (completedSnapshot.exists()) {
+      transaction.set(sessionRef, { ...preparedSession, eventSequence: sequence }, { merge: true });
+      return { created: false };
+    }
+
+    transaction.set(completedRef, {
+      ...summary,
+      sessionId,
+      finalizedAt: now,
+    });
+
+    for (const [person, baselines] of Object.entries(baselineStates)) {
+      transaction.set(doc(db, collectionName("currentBaselines"), person), {
+        userId: person,
+        baselines: prepareStoredBaselines(baselines),
+        updatedAt: now,
+      });
+    }
+
+    transaction.set(sessionRef, { ...preparedSession, eventSequence: sequence }, { merge: true });
+    transaction.set(doc(collection(sessionRef, "events"), String(sequence).padStart(8, "0")), removeUndefinedValues({
+      type: "completeWorkout",
+      sequence,
+      sessionId,
+      createdAt: now,
+      payload: {
+        session: preparedSession,
+      },
+    }) as Record<string, unknown>);
+
+    return { created: true };
+  });
+}
+
+export function saveCurrentBaselines(person: string, weights: UserWeights) {
+  return saveCurrentBaselineStates(
+    person,
+    Object.fromEntries(
+      Object.entries(weights).map(([exerciseId, weight]) => [
+        exerciseId,
+        { weight, successStreak: 0 },
+      ])
+    )
+  );
 }
 
 export function saveUserProfile(person: string, weights: UserWeights) {
-  return setDoc(doc(db, "userProfiles", person), { weights });
+  return saveCurrentBaselines(person, weights);
 }
 
 export type SetResult = {
@@ -207,7 +508,6 @@ function isWorkoutExercise(exercise: Partial<WorkoutExercise>): exercise is Work
     typeof exercise.sets === "number" &&
     typeof exercise.reps === "string" &&
     typeof exercise.defaultReps === "number" &&
-    !!exercise.defaultWeight &&
     Array.isArray(exercise.setPlan)
   );
 }
@@ -389,90 +689,24 @@ export function calculateExerciseOutcomes(
   return outcomes;
 }
 
-export type ProgressionReason = {
-  person: string;
-  exercise: string;
-  oldWeight: number;
-  newWeight: number;
-  reason: string;
-};
-
 export function calculateProgressedUserProfilesFromHistory(
   currentProfiles: Record<string, UserWeights>,
+  currentBaselineStates: Record<string, UserBaselines>,
   workoutPlan: Exercise[],
-  completedWorkoutHistory: CompletedWorkoutSummary[]
+  completedWorkoutHistory: CompletedWorkoutSummary[],
+  baselineProgressionStrategies: Record<string, BaselineProgressionStrategy>,
+  userStrategies: Record<string, "pyramid" | "straight">
 ): {
   updatedProfiles: Record<string, UserWeights>;
+  updatedBaselineStates: Record<string, UserBaselines>;
   reasons: ProgressionReason[];
 } {
-  const updatedProfiles = JSON.parse(JSON.stringify(currentProfiles));
-  const reasons: ProgressionReason[] = [];
-
-  // Get people from profiles
-  const people = Object.keys(updatedProfiles) as string[];
-
-  for (const person of people) {
-    if (!updatedProfiles[person]) continue;
-
-    // Get all exercises except warm-up
-    const exercises = workoutPlan.filter((e) => e.id !== "warm_up");
-
-    for (const exercise of exercises) {
-      const exerciseId = exercise.id;
-      const exerciseName = exercise.name;
-
-      // Collect the last outcomes for this person-exercise
-      const outcomes: ExerciseOutcome[] = [];
-
-      for (let i = completedWorkoutHistory.length - 1; i >= 0 && outcomes.length < 3; i--) {
-        const workoutEntry = completedWorkoutHistory[i];
-        if (
-          workoutEntry.exerciseOutcomes &&
-          workoutEntry.exerciseOutcomes[person] &&
-          (workoutEntry.exerciseOutcomes[person][exerciseId] ||
-            workoutEntry.exerciseOutcomes[person][exerciseName])
-        ) {
-          outcomes.unshift(
-            workoutEntry.exerciseOutcomes[person][exerciseId] ??
-            workoutEntry.exerciseOutcomes[person][exerciseName]
-          );
-        }
-      }
-
-      const currentWeight = updatedProfiles[person][exerciseId] ?? updatedProfiles[person][exerciseName] ?? 0;
-
-      // Apply progression rules
-      let newWeight = currentWeight;
-      let reason: string | null = null;
-
-      // Rule 1: Last 3 are all "exact" -> +5
-      if (outcomes.length >= 3 && outcomes.slice(-3).every((o) => o === "exact")) {
-        newWeight = currentWeight + 5;
-        reason = "last 3 outcomes exact";
-      }
-      // Rule 2: Last 2 are all "up" -> +5
-      else if (outcomes.length >= 2 && outcomes.slice(-2).every((o) => o === "up")) {
-        newWeight = currentWeight + 5;
-        reason = "last 2 outcomes up";
-      }
-      // Rule 3: Last 2 are all "down" -> -5
-      else if (outcomes.length >= 2 && outcomes.slice(-2).every((o) => o === "down")) {
-        newWeight = Math.max(0, currentWeight - 5);
-        reason = "last 2 outcomes down";
-      }
-
-      if (newWeight !== currentWeight && reason) {
-        updatedProfiles[person][exerciseId] = newWeight;
-        reasons.push({
-          person,
-          exercise: exerciseName,
-          oldWeight: currentWeight,
-          newWeight,
-          reason,
-        });
-      }
-    }
-  }
-
-  return { updatedProfiles, reasons };
+  return calculateProgressedBaselineStates({
+    currentProfiles,
+    currentBaselineStates,
+    workoutPlan,
+    completedWorkout: completedWorkoutHistory.at(-1),
+    baselineProgressionStrategies,
+    userStrategies,
+  });
 }

@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { deleteApp, initializeApp } from "firebase/app";
-import { doc, getFirestore, setDoc } from "firebase/firestore";
+import { collection, deleteDoc, doc, getDocs, getFirestore, setDoc } from "firebase/firestore";
 
 const exerciseIds = [
   "warm_up",
@@ -15,36 +15,108 @@ const exerciseIds = [
   "thigh_machine",
 ];
 
+const standardPyramid = [
+  { reps: 12, weightOffset: -10 },
+  { reps: 10, weightOffset: 0 },
+  { reps: 8, weightOffset: 10 },
+];
+
+const smallStepPyramid = [
+  { reps: 15, weightOffset: -5 },
+  { reps: 12, weightOffset: 0 },
+  { reps: 10, weightOffset: 5 },
+];
+
+const straightSets = [
+  { reps: 10, weightOffset: 0 },
+  { reps: 10, weightOffset: 0 },
+  { reps: 10, weightOffset: 0 },
+];
+
 const exercises = {
-  warm_up: { active: true, type: "single", name: "Warm-up" },
-  leg_press: { active: true, type: "single", name: "Leg Press" },
+  warm_up: {
+    active: true,
+    type: "single",
+    name: "Warm-up",
+    sets: 1,
+    reps: "5-8 min",
+    defaultReps: 0,
+    notes: "Treadmill or elliptical",
+    setPlan: [{ reps: 0, weightOffset: 0 }],
+  },
+  leg_press: {
+    active: true,
+    type: "single",
+    name: "Leg Press",
+    sets: 3,
+    reps: "8-12",
+    defaultReps: 10,
+    setPlan: standardPyramid,
+  },
   chest_press_machine: {
     active: true,
     type: "single",
     name: "Chest Press Machine",
+    sets: 3,
+    reps: "8-12",
+    defaultReps: 10,
+    setPlan: standardPyramid,
   },
   seated_row_machine: {
     active: true,
     type: "single",
     name: "Seated Row Machine",
+    sets: 3,
+    reps: "8-12",
+    defaultReps: 10,
+    setPlan: standardPyramid,
   },
-  glute_machine: { active: true, type: "single", name: "Glute Machine" },
+  glute_machine: {
+    active: true,
+    type: "single",
+    name: "Glute Machine",
+    sets: 3,
+    reps: "10-15",
+    defaultReps: 12,
+    notes: "Kickback or abductor",
+    setPlan: smallStepPyramid,
+  },
   bicep_curl_machine: {
     active: true,
     type: "single",
     name: "Bicep Curl Machine",
+    sets: 3,
+    reps: "10-15",
+    defaultReps: 12,
+    setPlan: smallStepPyramid,
   },
   tricep_pushdown: {
     active: true,
     type: "single",
     name: "Tricep Pushdown",
+    sets: 3,
+    reps: "10-15",
+    defaultReps: 12,
+    setPlan: smallStepPyramid,
   },
-  abs: { active: true, type: "single", name: "Abs" },
+  abs: {
+    active: true,
+    type: "single",
+    name: "Abs",
+    sets: 3,
+    reps: "Machine or 20-45s plank",
+    defaultReps: 12,
+    setPlan: straightSets,
+  },
   thigh_machine: {
     active: true,
     type: "compound",
     name: "Inner / Outer Thigh Machine",
+    sets: 3,
+    reps: "10-15",
+    defaultReps: 12,
     notes: "Do inner then outer before switching people",
+    setPlan: smallStepPyramid,
     movements: [
       {
         id: "thigh_machine_inner",
@@ -60,20 +132,62 @@ const exercises = {
     active: true,
     type: "single",
     name: "Dumbbell Romanian Deadlift",
+    sets: 3,
+    reps: "8-12",
+    defaultReps: 10,
+    notes: "RDL - hinge at hips, slight knee bend",
+    setPlan: standardPyramid,
   },
 };
 
-const userProfileUpdates = {
+const userProfiles = {
   Mike: {
-    weights: {
-      thigh_machine_inner: 55,
-      thigh_machine_outer: 75,
+    id: "Mike",
+    displayName: "Mike",
+    progressionStrategy: "pyramid",
+    baselineProgressionStrategy: "medium",
+    active: true,
+  },
+  Victoria: {
+    id: "Victoria",
+    displayName: "Victoria",
+    progressionStrategy: "straight",
+    baselineProgressionStrategy: "straight",
+    active: true,
+  },
+};
+
+const currentBaselines = {
+  Mike: {
+    userId: "Mike",
+    baselines: {
+      warm_up: { weight: 0, successStreak: 0 },
+      leg_press: { weight: 125, successStreak: 0 },
+      chest_press_machine: { weight: 65, successStreak: 0 },
+      seated_row_machine: { weight: 55, successStreak: 0 },
+      glute_machine: { weight: 55, successStreak: 0 },
+      bicep_curl_machine: { weight: 55, successStreak: 0 },
+      tricep_pushdown: { weight: 55, successStreak: 0 },
+      abs: { weight: 0, successStreak: 0 },
+      thigh_machine_inner: { weight: 55, successStreak: 0 },
+      thigh_machine_outer: { weight: 75, successStreak: 0 },
+      dumbbell_romanian_deadlift: { weight: 35, successStreak: 0 },
     },
   },
   Victoria: {
-    weights: {
-      thigh_machine_inner: 50,
-      thigh_machine_outer: 65,
+    userId: "Victoria",
+    baselines: {
+      warm_up: { weight: 0, successStreak: 0 },
+      leg_press: { weight: 95, successStreak: 0 },
+      chest_press_machine: { weight: 25, successStreak: 0 },
+      seated_row_machine: { weight: 35, successStreak: 0 },
+      glute_machine: { weight: 50, successStreak: 0 },
+      bicep_curl_machine: { weight: 10, successStreak: 0 },
+      tricep_pushdown: { weight: 30, successStreak: 0 },
+      abs: { weight: 0, successStreak: 0 },
+      thigh_machine_inner: { weight: 50, successStreak: 0 },
+      thigh_machine_outer: { weight: 65, successStreak: 0 },
+      dumbbell_romanian_deadlift: { weight: 20, successStreak: 0 },
     },
   },
 };
@@ -119,8 +233,25 @@ function requireEnv(env, key) {
   return value;
 }
 
+function readCollectionPrefix() {
+  const prefixArg = process.argv.find((item) => item.startsWith("--collection-prefix="));
+
+  if (prefixArg) {
+    return prefixArg.slice("--collection-prefix=".length);
+  }
+
+  return process.env.VITE_FIRESTORE_COLLECTION_PREFIX ?? "";
+}
+
+const collectionPrefix = readCollectionPrefix();
+
+function collectionName(name) {
+  return `${collectionPrefix}${name}`;
+}
+
 async function main() {
   const dryRun = process.argv.includes("--dry-run");
+  const resetRuntime = process.argv.includes("--reset-runtime");
   const env = await loadEnv();
 
   const firebaseConfig = {
@@ -133,29 +264,63 @@ async function main() {
   };
 
   if (dryRun) {
-    console.log("Dry run: would write workoutPlans/default");
+    if (resetRuntime) {
+      console.log(`Dry run: would delete ${collectionName("workoutSessions")}/* and nested events`);
+      console.log(`Dry run: would delete ${collectionName("completedWorkouts")}/*`);
+    }
+    console.log(`Dry run: would write ${collectionName("workoutPlans")}/default`);
     console.log(JSON.stringify(workoutPlan, null, 2));
-    console.log("Dry run: would write exercises/*");
+    console.log(`Dry run: would write ${collectionName("exercises")}/*`);
     console.log(JSON.stringify(exercises, null, 2));
-    console.log("Dry run: would merge userProfiles/*");
-    console.log(JSON.stringify(userProfileUpdates, null, 2));
+    console.log(`Dry run: would write ${collectionName("userProfiles")}/*`);
+    console.log(JSON.stringify(userProfiles, null, 2));
+    console.log(`Dry run: would write ${collectionName("currentBaselines")}/*`);
+    console.log(JSON.stringify(currentBaselines, null, 2));
     return;
   }
 
   const app = initializeApp(firebaseConfig);
   const db = getFirestore(app);
 
-  await setDoc(doc(db, "workoutPlans", "default"), workoutPlan);
-  console.log("Wrote workoutPlans/default");
+  if (resetRuntime) {
+    const workoutSessionsSnapshot = await getDocs(collection(db, collectionName("workoutSessions")));
 
-  for (const [exerciseId, exercise] of Object.entries(exercises)) {
-    await setDoc(doc(db, "exercises", exerciseId), exercise);
-    console.log(`Wrote exercises/${exerciseId}`);
+    for (const sessionDoc of workoutSessionsSnapshot.docs) {
+      const eventsSnapshot = await getDocs(collection(db, collectionName("workoutSessions"), sessionDoc.id, "events"));
+
+      for (const eventDoc of eventsSnapshot.docs) {
+        await deleteDoc(eventDoc.ref);
+        console.log(`Deleted ${collectionName("workoutSessions")}/${sessionDoc.id}/events/${eventDoc.id}`);
+      }
+
+      await deleteDoc(sessionDoc.ref);
+      console.log(`Deleted ${collectionName("workoutSessions")}/${sessionDoc.id}`);
+    }
+
+    const completedWorkoutsSnapshot = await getDocs(collection(db, collectionName("completedWorkouts")));
+
+    for (const completedWorkoutDoc of completedWorkoutsSnapshot.docs) {
+      await deleteDoc(completedWorkoutDoc.ref);
+      console.log(`Deleted ${collectionName("completedWorkouts")}/${completedWorkoutDoc.id}`);
+    }
   }
 
-  for (const [person, profileUpdate] of Object.entries(userProfileUpdates)) {
-    await setDoc(doc(db, "userProfiles", person), profileUpdate, { merge: true });
-    console.log(`Merged userProfiles/${person}`);
+  await setDoc(doc(db, collectionName("workoutPlans"), "default"), workoutPlan);
+  console.log(`Wrote ${collectionName("workoutPlans")}/default`);
+
+  for (const [exerciseId, exercise] of Object.entries(exercises)) {
+    await setDoc(doc(db, collectionName("exercises"), exerciseId), exercise);
+    console.log(`Wrote ${collectionName("exercises")}/${exerciseId}`);
+  }
+
+  for (const [person, profileUpdate] of Object.entries(userProfiles)) {
+    await setDoc(doc(db, collectionName("userProfiles"), person), profileUpdate);
+    console.log(`Wrote ${collectionName("userProfiles")}/${person}`);
+  }
+
+  for (const [person, baselineUpdate] of Object.entries(currentBaselines)) {
+    await setDoc(doc(db, collectionName("currentBaselines"), person), baselineUpdate);
+    console.log(`Wrote ${collectionName("currentBaselines")}/${person}`);
   }
 
   await deleteApp(app);

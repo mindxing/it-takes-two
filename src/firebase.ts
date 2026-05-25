@@ -15,3 +15,9 @@ const app = initializeApp(firebaseConfig);
 
 export const db = getFirestore(app);
 
+const collectionPrefix = import.meta.env.VITE_FIRESTORE_COLLECTION_PREFIX ?? "";
+
+export function collectionName(name: string) {
+  return `${collectionPrefix}${name}`;
+}
+
