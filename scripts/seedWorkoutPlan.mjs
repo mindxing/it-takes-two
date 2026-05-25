@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { deleteApp, initializeApp } from "firebase/app";
-import { doc, getFirestore, setDoc } from "firebase/firestore";
+import { collection, deleteDoc, doc, getDocs, getFirestore, setDoc } from "firebase/firestore";
 
 const exerciseIds = [
   "warm_up",
@@ -251,6 +251,7 @@ function collectionName(name) {
 
 async function main() {
   const dryRun = process.argv.includes("--dry-run");
+  const resetRuntime = process.argv.includes("--reset-runtime");
   const env = await loadEnv();
 
   const firebaseConfig = {
@@ -263,6 +264,10 @@ async function main() {
   };
 
   if (dryRun) {
+    if (resetRuntime) {
+      console.log(`Dry run: would delete ${collectionName("workoutSessions")}/* and nested events`);
+      console.log(`Dry run: would delete ${collectionName("completedWorkouts")}/*`);
+    }
     console.log(`Dry run: would write ${collectionName("workoutPlans")}/default`);
     console.log(JSON.stringify(workoutPlan, null, 2));
     console.log(`Dry run: would write ${collectionName("exercises")}/*`);
@@ -276,6 +281,29 @@ async function main() {
 
   const app = initializeApp(firebaseConfig);
   const db = getFirestore(app);
+
+  if (resetRuntime) {
+    const workoutSessionsSnapshot = await getDocs(collection(db, collectionName("workoutSessions")));
+
+    for (const sessionDoc of workoutSessionsSnapshot.docs) {
+      const eventsSnapshot = await getDocs(collection(db, collectionName("workoutSessions"), sessionDoc.id, "events"));
+
+      for (const eventDoc of eventsSnapshot.docs) {
+        await deleteDoc(eventDoc.ref);
+        console.log(`Deleted ${collectionName("workoutSessions")}/${sessionDoc.id}/events/${eventDoc.id}`);
+      }
+
+      await deleteDoc(sessionDoc.ref);
+      console.log(`Deleted ${collectionName("workoutSessions")}/${sessionDoc.id}`);
+    }
+
+    const completedWorkoutsSnapshot = await getDocs(collection(db, collectionName("completedWorkouts")));
+
+    for (const completedWorkoutDoc of completedWorkoutsSnapshot.docs) {
+      await deleteDoc(completedWorkoutDoc.ref);
+      console.log(`Deleted ${collectionName("completedWorkouts")}/${completedWorkoutDoc.id}`);
+    }
+  }
 
   await setDoc(doc(db, collectionName("workoutPlans"), "default"), workoutPlan);
   console.log(`Wrote ${collectionName("workoutPlans")}/default`);

@@ -16,6 +16,8 @@
     "deploy:tmp-preview": "npm run build:tmp && firebase hosting:channel:deploy sync-dev",
     "seed:workout-plan": "node scripts/seedWorkoutPlan.mjs",
     "seed:workout-plan:tmp": "node scripts/seedWorkoutPlan.mjs --collection-prefix=tmp_",
+    "seed:workout-plan:reset": "node scripts/seedWorkoutPlan.mjs --reset-runtime",
+    "seed:workout-plan:tmp:reset": "node scripts/seedWorkoutPlan.mjs --collection-prefix=tmp_ --reset-runtime",
     "version:patch": "npm version patch --no-git-tag-version"
   },
   "dependencies": {
