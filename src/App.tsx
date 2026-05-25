@@ -19,6 +19,12 @@ import {
   type WeightStrategy,
   type WorkoutSession,
 } from "./workoutEngine";
+import {
+  applyIncomingSessionState,
+  cancelWorkoutState,
+  joinRemoteSessionState,
+  shouldApplyWorkoutEvent,
+} from "./workoutSync";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 
 declare const __APP_VERSION__: string;
@@ -277,10 +283,6 @@ function App() {
   const movement = exercise ? activeMovement(exercise, session.currentMovementIndex ?? 0) : null;
   const currentPerson = session.firstPerson ? session.exerciseOrder[session.currentPersonIndex] : null;
 
-  function isJoinableRemoteSession(remoteSession: WorkoutSession | null) {
-    return remoteSession?.status === "active" && !remoteSession.complete;
-  }
-
   const setLocalSession = useCallback((nextSession: WorkoutSession) => {
     sessionRef.current = nextSession;
     setSession(nextSession);
@@ -309,50 +311,25 @@ function App() {
   }
 
   const applyIncomingSession = useCallback((incoming: WorkoutSession) => {
-    const incomingRevision = incoming.localRevision ?? 0;
-    const incomingEventSequence = incoming.eventSequence ?? 0;
+    const next = applyIncomingSessionState({
+      state: {
+        session: sessionRef.current,
+        activeRemoteSession: activeRemoteSessionRef.current,
+        latestLocalRevision: latestLocalRevisionRef.current,
+        latestEventSequence: latestEventSequenceRef.current,
+      },
+      incoming,
+      viewingPast: viewingPastRef.current,
+      nowMs: Date.now(),
+    });
 
-    latestLocalRevisionRef.current = Math.max(
-      latestLocalRevisionRef.current,
-      incomingRevision
-    );
-    latestEventSequenceRef.current = Math.max(
-      latestEventSequenceRef.current,
-      incomingEventSequence
-    );
+    latestLocalRevisionRef.current = next.latestLocalRevision;
+    latestEventSequenceRef.current = next.latestEventSequence;
+    activeRemoteSessionRef.current = next.activeRemoteSession;
+    setActiveRemoteSession(next.activeRemoteSession);
 
-    const isActive = incoming.status === "active" && !incoming.complete;
-    const isStale =
-      isActive &&
-      incoming.updatedAt &&
-      new Date(incoming.updatedAt).getTime() <
-      Date.now() - 12 * 60 * 60 * 1000;
-
-    if (incoming.status === "completed" || incoming.complete) {
-      setActiveRemoteSession(null);
-      activeRemoteSessionRef.current = null;
-
-      if (sessionRef.current.started && !viewingPastRef.current) {
-        setLocalSession(incoming);
-      }
-
-      return;
-    }
-
-    if (isActive && !isStale) {
-      setActiveRemoteSession(incoming);
-      activeRemoteSessionRef.current = incoming;
-
-      if (sessionRef.current.started && !sessionRef.current.complete) {
-        setLocalSession(incoming);
-      }
-    } else {
-      setActiveRemoteSession(null);
-      activeRemoteSessionRef.current = null;
-
-      if (incoming.status === "cancelled") {
-        setLocalSession(initialSession);
-      }
+    if (next.session !== sessionRef.current) {
+      setLocalSession(next.session);
     }
   }, [setLocalSession]);
 
@@ -436,7 +413,7 @@ function App() {
       const eventSession = event.payload.session as WorkoutSession | undefined;
 
       if (!eventSession) return;
-      if (sessionRef.current.sessionId && eventSession.sessionId !== sessionRef.current.sessionId) return;
+      if (!shouldApplyWorkoutEvent(sessionRef.current, eventSession)) return;
 
       applyIncomingSession({
         ...eventSession,
@@ -514,15 +491,15 @@ function App() {
   async function cancelWorkout() {
     clearPendingStepperSave();
 
-    const cancelledSession = prepareLocalSession({
-      ...sessionRef.current,
-      status: "cancelled",
+    const cancelled = cancelWorkoutState({
+      session: sessionRef.current,
       cancelledAt: new Date().toISOString(),
     });
+    const cancelledSession = prepareLocalSession(cancelled.cancelledSession);
 
-    setActiveRemoteSession(null);
-    activeRemoteSessionRef.current = null;
-    setLocalSession(initialSession);
+    setActiveRemoteSession(cancelled.activeRemoteSession);
+    activeRemoteSessionRef.current = cancelled.activeRemoteSession;
+    setLocalSession(cancelled.localSession);
 
     savePreparedSession(cancelledSession, "cancelWorkout").catch((error) => {
       console.error("Failed to cancel workout:", error);
@@ -542,21 +519,25 @@ function App() {
       console.error("Failed to load latest workout session:", error);
     }
 
-    if (remoteSession && isJoinableRemoteSession(remoteSession)) {
-      setActiveRemoteSession(remoteSession);
-      activeRemoteSessionRef.current = remoteSession;
-      setLocalSession(remoteSession);
-      return true;
+    const joined = joinRemoteSessionState({
+      state: {
+        session: sessionRef.current,
+        activeRemoteSession: activeRemoteSessionRef.current,
+        latestLocalRevision: latestLocalRevisionRef.current,
+        latestEventSequence: latestEventSequenceRef.current,
+      },
+      remoteSession,
+      nowMs: Date.now(),
+    });
+
+    setActiveRemoteSession(joined.state.activeRemoteSession);
+    activeRemoteSessionRef.current = joined.state.activeRemoteSession;
+
+    if (joined.state.session !== sessionRef.current) {
+      setLocalSession(joined.state.session);
     }
 
-    setActiveRemoteSession(null);
-    activeRemoteSessionRef.current = null;
-
-    if (remoteSession?.status === "cancelled") {
-      setLocalSession(initialSession);
-    }
-
-    return false;
+    return joined.joined;
   }
 
   async function recordSet(status: SetStatus) {
