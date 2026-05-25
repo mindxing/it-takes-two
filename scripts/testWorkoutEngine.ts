@@ -17,12 +17,14 @@ const profiles: Record<Person, Record<string, number>> = {
   Mike: {
     press: 100,
     row: 80,
+    pulldown: 90,
     combo_inner: 50,
     combo_outer: 60,
   },
   Victoria: {
     press: 40,
     row: 30,
+    pulldown: 45,
     combo_inner: 20,
     combo_outer: 25,
   },
@@ -53,6 +55,18 @@ const row: Exercise = {
   defaultReps: 10,
   setPlan: [
     { reps: 12, weightOffset: -10 },
+  ],
+};
+
+const pulldown: Exercise = {
+  id: "pulldown",
+  name: "Pulldown",
+  sets: 2,
+  reps: "8-12",
+  defaultReps: 10,
+  setPlan: [
+    { reps: 12, weightOffset: -10 },
+    { reps: 10, weightOffset: 0 },
   ],
 };
 
@@ -88,6 +102,10 @@ function complete(session: WorkoutSession, workout: Exercise[], status: "complet
     completedAt: "2026-05-25T12:00:00.000Z",
     createSessionId: () => "generated-session",
   });
+}
+
+function effectiveWorkout(session: WorkoutSession, fallback: Exercise[]) {
+  return session.reorderedWorkout ?? fallback;
 }
 
 {
@@ -289,6 +307,81 @@ function complete(session: WorkoutSession, workout: Exercise[], status: "complet
   session = adjustCurrentWeight({ session, workout, userStrategies: strategies, delta: -500 });
   assert.equal(session.currentWeight, 0);
   assert.equal(session.adjustedBaselines?.press?.Mike, 10);
+}
+
+{
+  const workout = [press, pulldown];
+  let session = startWorkoutSession("session-tandem", workout);
+
+  session = chooseFirstPerson({
+    session,
+    workout,
+    userProfiles: profiles,
+    userStrategies: strategies,
+    firstPerson: "Mike",
+    tandemExerciseId: "pulldown",
+  });
+
+  const prompts = [];
+
+  for (let i = 0; i < 8; i += 1) {
+    const currentWorkout = effectiveWorkout(session, workout);
+    const prompt = currentWorkoutPrompt(session, currentWorkout);
+    prompts.push(`${prompt.person}:${prompt.exerciseId}:S${prompt.setNumber}`);
+    session = complete(session, currentWorkout);
+  }
+
+  assert.deepEqual(prompts, [
+    "Mike:press:S1",
+    "Victoria:pulldown:S1",
+    "Mike:pulldown:S1",
+    "Victoria:press:S1",
+    "Mike:press:S2",
+    "Victoria:pulldown:S2",
+    "Mike:pulldown:S2",
+    "Victoria:press:S2",
+  ]);
+  assert.equal(session.complete, true);
+}
+
+{
+  const curl: Exercise = {
+    id: "curl",
+    name: "Curl",
+    sets: 1,
+    reps: "8-12",
+    defaultReps: 10,
+    setPlan: [{ reps: 10, weightOffset: 0 }],
+  };
+  const workout = [combo, curl];
+  let session = startWorkoutSession("session-compound-tandem", workout);
+
+  session = chooseFirstPerson({
+    session,
+    workout,
+    userProfiles: profiles,
+    userStrategies: strategies,
+    firstPerson: "Mike",
+    tandemExerciseId: "curl",
+  });
+
+  const steps = [];
+
+  while (!session.complete) {
+    const currentWorkout = effectiveWorkout(session, workout);
+    const prompt = currentWorkoutPrompt(session, currentWorkout);
+    steps.push(`${prompt.person}:${prompt.exerciseId}:${prompt.movementId ?? "single"}:S${prompt.setNumber}`);
+    session = complete(session, currentWorkout);
+  }
+
+  assert.deepEqual(steps, [
+    "Mike:combo:combo_inner:S1",
+    "Mike:combo:combo_outer:S1",
+    "Victoria:curl:single:S1",
+    "Mike:curl:single:S1",
+    "Victoria:combo:combo_inner:S1",
+    "Victoria:combo:combo_outer:S1",
+  ]);
 }
 
 console.log("Workout engine tests passed.");

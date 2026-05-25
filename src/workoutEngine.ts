@@ -23,6 +23,11 @@ export type WorkoutSession = {
   warmupStartedAt?: string | null;
   adjustedBaselines?: Record<string, Partial<Record<Person, number>>>;
   adjustedRepBaselines?: Record<string, Partial<Record<Person, number>>>;
+  tandem?: {
+    primaryExerciseIndex: number;
+    secondaryExerciseIndex: number;
+    turnIndex: number;
+  } | null;
   status?: "active" | "completed" | "cancelled";
   createdAt?: string;
   updatedAt?: string;
@@ -116,20 +121,23 @@ export function chooseFirstPerson({
   userProfiles,
   userStrategies,
   firstPerson,
+  tandemExerciseId,
 }: {
   session: WorkoutSession;
   workout: Exercise[];
   userProfiles: Record<Person, Record<string, number>>;
   userStrategies: Record<Person, WeightStrategy>;
   firstPerson: Person;
+  tandemExerciseId?: string | null;
 }): WorkoutSession {
-  const exercise = workout[session.exerciseIndex];
+  const prepared = prepareTandemWorkout(session, workout, tandemExerciseId);
+  const exercise = prepared.workout[prepared.session.exerciseIndex];
   const order = firstPerson === "Victoria" ? ["Victoria", "Mike"] as Person[] : ["Mike", "Victoria"] as Person[];
   const firstMovement = activeMovement(exercise, 0);
   const target = getSetPlan(exercise, firstMovement)[0];
 
   return {
-    ...session,
+    ...prepared.session,
     exerciseOrder: order,
     firstPerson,
     currentPersonIndex: 0,
@@ -151,6 +159,49 @@ export function chooseFirstPerson({
         [firstPerson]: target.reps,
       },
     },
+  };
+}
+
+function prepareTandemWorkout(session: WorkoutSession, workout: Exercise[], tandemExerciseId: string | null | undefined) {
+  if (!tandemExerciseId) {
+    return {
+      session: {
+        ...session,
+        tandem: null,
+      },
+      workout,
+    };
+  }
+
+  const currentIndex = session.exerciseIndex;
+  const selectedIndex = workout.findIndex((exercise, index) => index > currentIndex && exerciseKey(exercise) === tandemExerciseId);
+
+  if (selectedIndex < 0) {
+    return {
+      session: {
+        ...session,
+        tandem: null,
+      },
+      workout,
+    };
+  }
+
+  const reorderedWorkout = [...workout];
+  const selected = reorderedWorkout.splice(selectedIndex, 1)[0];
+  reorderedWorkout.splice(currentIndex + 1, 0, selected);
+
+  return {
+    session: {
+      ...session,
+      exerciseIndex: currentIndex,
+      reorderedWorkout,
+      tandem: {
+        primaryExerciseIndex: currentIndex,
+        secondaryExerciseIndex: currentIndex + 1,
+        turnIndex: 0,
+      },
+    },
+    workout: reorderedWorkout,
   };
 }
 
@@ -342,6 +393,17 @@ export function recordSetAndAdvance({
     };
   }
 
+  if (session.tandem) {
+    return advanceTandemTurn({
+      session: newSession,
+      workout,
+      userProfiles,
+      userStrategies,
+      completedAt,
+      createSessionId,
+    });
+  }
+
   if (session.currentPersonIndex === 0) {
     const nextPerson = session.exerciseOrder[1];
     const nextMovement = activeMovement(exercise, 0);
@@ -410,6 +472,152 @@ export function recordSetAndAdvance({
   };
 
   return newSession;
+}
+
+function tandemTurnFor(session: WorkoutSession, turnIndex: number) {
+  if (!session.tandem) {
+    return null;
+  }
+
+  const firstPersonIndex = 0;
+  const secondPersonIndex = 1;
+
+  if (turnIndex === 0) {
+    return {
+      exerciseIndex: session.tandem.primaryExerciseIndex,
+      personIndex: firstPersonIndex,
+    };
+  }
+
+  if (turnIndex === 1) {
+    return {
+      exerciseIndex: session.tandem.secondaryExerciseIndex,
+      personIndex: secondPersonIndex,
+    };
+  }
+
+  if (turnIndex === 2) {
+    return {
+      exerciseIndex: session.tandem.secondaryExerciseIndex,
+      personIndex: firstPersonIndex,
+    };
+  }
+
+  return {
+    exerciseIndex: session.tandem.primaryExerciseIndex,
+    personIndex: secondPersonIndex,
+  };
+}
+
+function nextTandemPosition(session: WorkoutSession, workout: Exercise[]) {
+  if (!session.tandem) return null;
+
+  let nextTurnIndex = session.tandem.turnIndex + 1;
+  let nextSet = session.currentSet;
+
+  while (nextSet <= maxTandemSets(session, workout)) {
+    if (nextTurnIndex > 3) {
+      nextTurnIndex = 0;
+      nextSet += 1;
+    }
+
+    const turn = tandemTurnFor(session, nextTurnIndex);
+    const exercise = turn ? workout[turn.exerciseIndex] : null;
+
+    if (turn && exercise && nextSet <= exercise.sets) {
+      return {
+        ...turn,
+        turnIndex: nextTurnIndex,
+        setNumber: nextSet,
+      };
+    }
+
+    nextTurnIndex += 1;
+  }
+
+  return null;
+}
+
+function maxTandemSets(session: WorkoutSession, workout: Exercise[]) {
+  if (!session.tandem) return 0;
+
+  return Math.max(
+    workout[session.tandem.primaryExerciseIndex]?.sets ?? 0,
+    workout[session.tandem.secondaryExerciseIndex]?.sets ?? 0
+  );
+}
+
+function advanceTandemTurn({
+  session,
+  workout,
+  userProfiles,
+  userStrategies,
+  completedAt,
+  createSessionId,
+}: {
+  session: WorkoutSession;
+  workout: Exercise[];
+  userProfiles: Record<Person, Record<string, number>>;
+  userStrategies: Record<Person, WeightStrategy>;
+  completedAt: string;
+  createSessionId: () => string;
+}) {
+  const nextPosition = nextTandemPosition(session, workout);
+
+  if (nextPosition) {
+    const exercise = workout[nextPosition.exerciseIndex];
+    const person = session.exerciseOrder[nextPosition.personIndex];
+    const movement = activeMovement(exercise, 0);
+    const next = prepareNextSetValues({
+      session,
+      exercise,
+      movement,
+      person,
+      setNumber: nextPosition.setNumber,
+      userProfiles,
+      userStrategies,
+    });
+
+    return {
+      ...session,
+      exerciseIndex: nextPosition.exerciseIndex,
+      currentPersonIndex: nextPosition.personIndex,
+      currentMovementIndex: 0,
+      currentSet: nextPosition.setNumber,
+      currentReps: next.reps,
+      currentWeight: next.weight,
+      adjustedRepBaselines: next.adjustedRepBaselines,
+      tandem: session.tandem
+        ? {
+          ...session.tandem,
+          turnIndex: nextPosition.turnIndex,
+        }
+        : session.tandem,
+    };
+  }
+
+  const nextExerciseIndex = session.tandem ? session.tandem.secondaryExerciseIndex + 1 : session.exerciseIndex + 1;
+
+  if (nextExerciseIndex < workout.length) {
+    return {
+      ...session,
+      exerciseIndex: nextExerciseIndex,
+      firstPerson: null,
+      currentPersonIndex: 0,
+      currentMovementIndex: 0,
+      currentSet: 1,
+      tandem: null,
+    };
+  }
+
+  return {
+    ...session,
+    sessionId: session.sessionId ?? createSessionId(),
+    complete: true,
+    status: "completed" as const,
+    completedAt,
+    tandem: null,
+  };
 }
 
 export function currentWorkoutPrompt(session: WorkoutSession, workout: Exercise[]) {

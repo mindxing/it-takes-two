@@ -256,6 +256,7 @@ function App() {
   const [warmupSeconds, setWarmupSeconds] = useState(0);
   const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
   const [workoutPlanLoaded, setWorkoutPlanLoaded] = useState(false);
+  const [tandemExerciseId, setTandemExerciseId] = useState("");
   const sessionRef = useRef(session);
   const activeRemoteSessionRef = useRef<WorkoutSession | null>(null);
   const viewingPastRef = useRef(viewingPast);
@@ -282,6 +283,9 @@ function App() {
   const exercise = effectiveWorkout[session.exerciseIndex];
   const movement = exercise ? activeMovement(exercise, session.currentMovementIndex ?? 0) : null;
   const currentPerson = session.firstPerson ? session.exerciseOrder[session.currentPersonIndex] : null;
+  const availableTandemExercises = session.started && !session.firstPerson && session.exerciseIndex > 0
+    ? effectiveWorkout.slice(session.exerciseIndex + 1).filter((item) => exerciseKey(item) !== "warm_up")
+    : [];
 
   const setLocalSession = useCallback((nextSession: WorkoutSession) => {
     sessionRef.current = nextSession;
@@ -500,6 +504,7 @@ function App() {
     setActiveRemoteSession(cancelled.activeRemoteSession);
     activeRemoteSessionRef.current = cancelled.activeRemoteSession;
     setLocalSession(cancelled.localSession);
+    setTandemExerciseId("");
 
     savePreparedSession(cancelledSession, "cancelWorkout").catch((error) => {
       console.error("Failed to cancel workout:", error);
@@ -508,6 +513,7 @@ function App() {
 
   function returnHome() {
     setLocalSession(initialSession);
+    setTandemExerciseId("");
   }
 
   async function joinActiveWorkout() {
@@ -920,6 +926,24 @@ function App() {
 
           <h2>Who goes first?</h2>
 
+          {availableTandemExercises.length > 0 && (
+            <label className="select-field">
+              <span>Tandem</span>
+              <select
+                value={tandemExerciseId}
+                disabled={pendingAction === "choose-first"}
+                onChange={(event) => setTandemExerciseId(event.target.value)}
+              >
+                <option value="">Solo exercise</option>
+                {availableTandemExercises.map((item) => (
+                  <option key={exerciseKey(item)} value={exerciseKey(item)}>
+                    {item.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+
           <div className="button-row">
 
             <button
@@ -934,9 +958,11 @@ function App() {
                   userProfiles,
                   userStrategies,
                   firstPerson: "Victoria",
+                  tandemExerciseId,
                 });
 
                 await commitSession(newSession, "choose-first");
+                setTandemExerciseId("");
               }}
             >
               Victoria
@@ -953,9 +979,11 @@ function App() {
                   userProfiles,
                   userStrategies,
                   firstPerson: "Mike",
+                  tandemExerciseId,
                 });
 
                 await commitSession(newSession, "choose-first");
+                setTandemExerciseId("");
               }}
             >
               Mike
@@ -993,6 +1021,11 @@ function App() {
         <p className="subtitle">
           {currentPerson} — Set {session.currentSet} of {exercise.sets}
         </p>
+        {session.tandem && (
+          <p className="subtitle tandem-label">
+            Tandem exercise
+          </p>
+        )}
         {movement && (
           <p className="subtitle">
             Movement {(session.currentMovementIndex ?? 0) + 1} of {exercise.movements?.length}: {movement.name}
