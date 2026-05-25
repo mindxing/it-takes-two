@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from "react";
+import { useCallback, useEffect, useState, useRef } from "react";
 import "./App.css";
 import { people, workout, type Person, type Exercise } from "./workoutData";
 import { appendWorkoutEvent, listenToWorkoutEvents, listenToWorkoutSession, loadCurrentWorkoutSession } from "./workoutSession";
@@ -346,10 +346,10 @@ function App() {
     return remoteSession?.status === "active" && !remoteSession.complete;
   }
 
-  function setLocalSession(nextSession: WorkoutSession) {
+  const setLocalSession = useCallback((nextSession: WorkoutSession) => {
     sessionRef.current = nextSession;
     setSession(nextSession);
-  }
+  }, []);
 
   function prepareLocalSession(nextSession: WorkoutSession) {
     const nextRevision =
@@ -373,6 +373,54 @@ function App() {
     pendingStepperSessionRef.current = null;
   }
 
+  const applyIncomingSession = useCallback((incoming: WorkoutSession) => {
+    const incomingRevision = incoming.localRevision ?? 0;
+    const incomingEventSequence = incoming.eventSequence ?? 0;
+
+    latestLocalRevisionRef.current = Math.max(
+      latestLocalRevisionRef.current,
+      incomingRevision
+    );
+    latestEventSequenceRef.current = Math.max(
+      latestEventSequenceRef.current,
+      incomingEventSequence
+    );
+
+    const isActive = incoming.status === "active" && !incoming.complete;
+    const isStale =
+      isActive &&
+      incoming.updatedAt &&
+      new Date(incoming.updatedAt).getTime() <
+      Date.now() - 12 * 60 * 60 * 1000;
+
+    if (incoming.status === "completed" || incoming.complete) {
+      setActiveRemoteSession(null);
+      activeRemoteSessionRef.current = null;
+
+      if (sessionRef.current.started && !viewingPastRef.current) {
+        setLocalSession(incoming);
+      }
+
+      return;
+    }
+
+    if (isActive && !isStale) {
+      setActiveRemoteSession(incoming);
+      activeRemoteSessionRef.current = incoming;
+
+      if (sessionRef.current.started && !sessionRef.current.complete) {
+        setLocalSession(incoming);
+      }
+    } else {
+      setActiveRemoteSession(null);
+      activeRemoteSessionRef.current = null;
+
+      if (incoming.status === "cancelled") {
+        setLocalSession(initialSession);
+      }
+    }
+  }, [setLocalSession]);
+
   async function savePreparedSession(nextSession: WorkoutSession, eventType: WorkoutEventType = "updateSession") {
     const actorId = nextSession.firstPerson
       ? nextSession.exerciseOrder[nextSession.currentPersonIndex]
@@ -392,7 +440,6 @@ function App() {
     clearPendingStepperSave();
 
     const prepared = prepareLocalSession(nextSession);
-    setLocalSession(prepared);
 
     if (action) {
       setPendingAction(action);
@@ -400,6 +447,7 @@ function App() {
 
     try {
       await savePreparedSession(prepared, eventType);
+      setLocalSession(prepared);
     } finally {
       if (action) {
         setPendingAction((current) => current === action ? null : current);
@@ -442,78 +490,27 @@ function App() {
   useEffect(() => {
     const unsubscribe = listenToWorkoutSession((data) => {
       const incoming = data as WorkoutSession;
-      const incomingRevision = incoming.localRevision ?? 0;
-      const incomingEventSequence = incoming.eventSequence ?? 0;
-
-      latestLocalRevisionRef.current = Math.max(
-        latestLocalRevisionRef.current,
-        incomingRevision
-      );
-      latestEventSequenceRef.current = Math.max(
-        latestEventSequenceRef.current,
-        incomingEventSequence
-      );
-
-      const isActive = incoming.status === "active" && !incoming.complete;
-      const isStale =
-        isActive &&
-        incoming.updatedAt &&
-        new Date(incoming.updatedAt).getTime() <
-        Date.now() - 12 * 60 * 60 * 1000;
-
-      if (incoming.status === "completed" || incoming.complete) {
-        setActiveRemoteSession(null);
-        activeRemoteSessionRef.current = null;
-
-        if (sessionRef.current.started && !viewingPastRef.current) {
-          setLocalSession(incoming);
-        }
-
-        return;
-      }
-
-      if (isActive && !isStale) {
-        setActiveRemoteSession(incoming);
-        activeRemoteSessionRef.current = incoming;
-
-        if (sessionRef.current.started && !sessionRef.current.complete) {
-          setLocalSession(incoming);
-        }
-      } else {
-        setActiveRemoteSession(null);
-        activeRemoteSessionRef.current = null;
-
-        if (incoming.status === "cancelled") {
-          setLocalSession(initialSession);
-        }
-      }
+      applyIncomingSession(incoming);
     });
 
     return () => unsubscribe();
-  }, []);
+  }, [applyIncomingSession]);
 
   useEffect(() => {
     const unsubscribe = listenToWorkoutEvents((event) => {
-      if (event.sequence <= latestEventSequenceRef.current) return;
-
       const eventSession = event.payload.session as WorkoutSession | undefined;
 
       if (!eventSession) return;
       if (sessionRef.current.sessionId && eventSession.sessionId !== sessionRef.current.sessionId) return;
 
-      latestEventSequenceRef.current = event.sequence;
-      latestLocalRevisionRef.current = Math.max(
-        latestLocalRevisionRef.current,
-        eventSession.localRevision ?? 0
-      );
-
-      if (!viewingPastRef.current) {
-        setLocalSession(eventSession);
-      }
+      applyIncomingSession({
+        ...eventSession,
+        eventSequence: event.sequence,
+      });
     });
 
     return () => unsubscribe();
-  }, []);
+  }, [applyIncomingSession]);
 
   useEffect(() => {
     loadCompletedWorkoutSummaries().then(setCompletedWorkouts);

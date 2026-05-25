@@ -99,7 +99,7 @@ export function appendWorkoutEvent(
       }) as Record<string, unknown>
       : null;
 
-    transaction.set(doc(collection(sessionRef, "events"), eventId), {
+    transaction.set(doc(collection(sessionRef, "events"), eventId), removeUndefinedValues({
       sequence,
       type,
       sessionId: event.sessionId,
@@ -107,7 +107,7 @@ export function appendWorkoutEvent(
       clientId: event.clientId,
       createdAt: now,
       payload: eventPayload,
-    });
+    }) as Record<string, unknown>);
 
     if (preparedSession) {
       if (!preparedSession.createdAt) {
@@ -129,27 +129,39 @@ export function listenToWorkoutEvents(onEvent: (event: WorkoutEvent) => void) {
     orderBy("sequence", "asc")
   );
 
-  return onSnapshot(eventsQuery, (snapshot) => {
-    snapshot.docChanges().forEach((change) => {
-      if (change.type !== "added") return;
+  return onSnapshot(
+    eventsQuery,
+    (snapshot) => {
+      snapshot.docChanges().forEach((change) => {
+        if (change.type !== "added") return;
 
-      const data = change.doc.data() as Omit<WorkoutEvent, "id">;
-      onEvent({
-        id: change.doc.id,
-        ...data,
+        const data = change.doc.data() as Omit<WorkoutEvent, "id">;
+        onEvent({
+          id: change.doc.id,
+          ...data,
+        });
       });
-    });
-  });
+    },
+    (error) => {
+      console.error("Failed to listen to workout events:", error);
+    }
+  );
 }
 
 export function listenToWorkoutSession(
   onSessionChange: (session: unknown) => void
 ) {
-  return onSnapshot(doc(db, collectionName("workoutSessions"), demoSessionId), (snapshot) => {
-    if (snapshot.exists()) {
-      onSessionChange(snapshot.data());
+  return onSnapshot(
+    doc(db, collectionName("workoutSessions"), demoSessionId),
+    (snapshot) => {
+      if (snapshot.exists()) {
+        onSessionChange(snapshot.data());
+      }
+    },
+    (error) => {
+      console.error("Failed to listen to workout session:", error);
     }
-  });
+  );
 }
 
 export async function loadCurrentWorkoutSession() {
@@ -431,7 +443,7 @@ export async function finalizeCompletedWorkout({
     }
 
     transaction.set(sessionRef, { ...preparedSession, eventSequence: sequence }, { merge: true });
-    transaction.set(doc(collection(sessionRef, "events"), String(sequence).padStart(8, "0")), {
+    transaction.set(doc(collection(sessionRef, "events"), String(sequence).padStart(8, "0")), removeUndefinedValues({
       type: "completeWorkout",
       sequence,
       sessionId,
@@ -439,7 +451,7 @@ export async function finalizeCompletedWorkout({
       payload: {
         session: preparedSession,
       },
-    });
+    }) as Record<string, unknown>);
 
     return { created: true };
   });
