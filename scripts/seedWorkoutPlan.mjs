@@ -8,11 +8,15 @@ const exerciseIds = [
   "leg_press",
   "chest_press_machine",
   "seated_row_machine",
-  "glute_machine",
+  "lat_pulldown",
   "bicep_curl_machine",
   "tricep_pushdown",
   "abs",
   "thigh_machine",
+];
+
+const retiredExerciseIds = [
+  "glute_machine",
 ];
 
 const standardPyramid = [
@@ -71,15 +75,14 @@ const exercises = {
     defaultReps: 10,
     setPlan: standardPyramid,
   },
-  glute_machine: {
+  lat_pulldown: {
     active: true,
     type: "single",
-    name: "Glute Machine",
+    name: "Lat Pulldown",
     sets: 3,
-    reps: "10-15",
-    defaultReps: 12,
-    notes: "Kickback or abductor",
-    setPlan: smallStepPyramid,
+    reps: "8-12",
+    defaultReps: 10,
+    setPlan: standardPyramid,
   },
   bicep_curl_machine: {
     active: true,
@@ -165,7 +168,7 @@ const currentBaselines = {
       leg_press: { weight: 125, successStreak: 0 },
       chest_press_machine: { weight: 65, successStreak: 0 },
       seated_row_machine: { weight: 55, successStreak: 0 },
-      glute_machine: { weight: 55, successStreak: 0 },
+      lat_pulldown: { weight: 55, successStreak: 0 },
       bicep_curl_machine: { weight: 55, successStreak: 0 },
       tricep_pushdown: { weight: 55, successStreak: 0 },
       abs: { weight: 0, successStreak: 0 },
@@ -181,7 +184,7 @@ const currentBaselines = {
       leg_press: { weight: 95, successStreak: 0 },
       chest_press_machine: { weight: 25, successStreak: 0 },
       seated_row_machine: { weight: 35, successStreak: 0 },
-      glute_machine: { weight: 50, successStreak: 0 },
+      lat_pulldown: { weight: 50, successStreak: 0 },
       bicep_curl_machine: { weight: 10, successStreak: 0 },
       tricep_pushdown: { weight: 30, successStreak: 0 },
       abs: { weight: 0, successStreak: 0 },
@@ -272,6 +275,8 @@ async function main() {
     console.log(JSON.stringify(workoutPlan, null, 2));
     console.log(`Dry run: would write ${collectionName("exercises")}/*`);
     console.log(JSON.stringify(exercises, null, 2));
+    console.log(`Dry run: would delete retired ${collectionName("exercises")} docs`);
+    console.log(JSON.stringify(retiredExerciseIds, null, 2));
     console.log(`Dry run: would write ${collectionName("userProfiles")}/*`);
     console.log(JSON.stringify(userProfiles, null, 2));
     console.log(`Dry run: would write ${collectionName("currentBaselines")}/*`);
@@ -311,6 +316,11 @@ async function main() {
   for (const [exerciseId, exercise] of Object.entries(exercises)) {
     await setDoc(doc(db, collectionName("exercises"), exerciseId), exercise);
     console.log(`Wrote ${collectionName("exercises")}/${exerciseId}`);
+  }
+
+  for (const exerciseId of retiredExerciseIds) {
+    await deleteDoc(doc(db, collectionName("exercises"), exerciseId));
+    console.log(`Deleted retired ${collectionName("exercises")}/${exerciseId}`);
   }
 
   for (const [person, profileUpdate] of Object.entries(userProfiles)) {
