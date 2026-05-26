@@ -75,6 +75,7 @@ Primary responsibilities:
 
 - Save and listen to the live workout session.
 - Append ordered event records under `workoutGroups/mike-victoria/workoutSessions/demo/events`.
+- Delete temporary event records for all non-active workout sessions after completion or cancellation.
 - Load the current workout session.
 - Load and merge workout plan data.
 - Load user profile settings.
@@ -152,6 +153,8 @@ If the incoming session is cancelled:
 
 - `activeRemoteSession` is cleared.
 - Local session is reset to the initial home state.
+
+After a local workout reaches `completed` or `cancelled`, the app attempts to delete event documents for all non-active sessions in the group. This cleanup is best-effort and does not block the visible workout state; the durable session document remains enough to recover even when the event stream is empty.
 
 ## Local Session Commit Flow
 

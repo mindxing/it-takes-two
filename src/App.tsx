@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState, useRef } from "react";
 import "./App.css";
 import { people, workout, type Person, type Exercise } from "./workoutData";
-import { appendWorkoutEvent, listenToWorkoutEvents, listenToWorkoutSession, loadCurrentWorkoutSession } from "./workoutSession";
+import { appendWorkoutEvent, cleanupEventsForNonActiveWorkoutSessions, listenToWorkoutEvents, listenToWorkoutSession, loadCurrentWorkoutSession } from "./workoutSession";
 import { finalizeCompletedWorkout, loadCompletedWorkoutSummaries, loadCurrentBaselineStates, loadUserProfileSettings, loadWorkoutPlan, calculateExerciseOutcomes, calculateProgressedUserProfilesFromHistory, type BaselineProgressionStrategy, type SetResult, type ExerciseOutcomes, type UserBaselines, type WorkoutEventType } from "./workoutSession";
 import {
   activeMovement,
@@ -506,9 +506,13 @@ function App() {
     setLocalSession(cancelled.localSession);
     setTandemExerciseId("");
 
-    savePreparedSession(cancelledSession, "cancelWorkout").catch((error) => {
-      console.error("Failed to cancel workout:", error);
-    });
+    savePreparedSession(cancelledSession, "cancelWorkout")
+      .then(() => cleanupEventsForNonActiveWorkoutSessions().catch((error) => {
+        console.error("Failed to clean up workout events:", error);
+      }))
+      .catch((error) => {
+        console.error("Failed to cancel workout:", error);
+      });
   }
 
   function returnHome() {
@@ -622,6 +626,9 @@ function App() {
           summary: completedSummary,
           baselineStates: updatedBaselineStates,
           session: newSession,
+        });
+        cleanupEventsForNonActiveWorkoutSessions().catch((error) => {
+          console.error("Failed to clean up workout events:", error);
         });
 
         if (finalizeResult.created) {

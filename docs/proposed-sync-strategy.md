@@ -325,7 +325,7 @@ The app should always be able to recover from the session document even if the e
 
 Events are temporary.
 
-After a workout is completed or cancelled, event documents can be deleted or ignored by retention rules.
+Implemented behavior: after a workout is completed or cancelled, the client best-effort deletes event documents for all sessions that are no longer active. Sweeping all non-active sessions lets a later workout completion clean up event data left behind by an earlier failed cleanup.
 
 Potential cleanup rule:
 

@@ -1,6 +1,7 @@
 import { collectionName, db } from "./firebase";
-import { addDoc, collection, getDocs, orderBy, query, doc, onSnapshot, setDoc, getDoc, runTransaction } from "firebase/firestore";
+import { addDoc, collection, deleteDoc, getDocs, orderBy, query, doc, onSnapshot, setDoc, getDoc, runTransaction } from "firebase/firestore";
 import type { Person, Exercise as WorkoutExercise } from "./workoutData";
+import { shouldCleanupWorkoutSessionEvents } from "./workoutSync";
 import {
   calculateProgressedBaselineStates,
   type BaselineProgressionStrategy,
@@ -167,6 +168,24 @@ export function listenToWorkoutSession(
 export async function loadCurrentWorkoutSession() {
   const snapshot = await getDoc(doc(db, collectionName("workoutSessions"), demoSessionId));
   return snapshot.exists() ? snapshot.data() : null;
+}
+
+export async function cleanupEventsForNonActiveWorkoutSessions() {
+  const sessionsSnapshot = await getDocs(collection(db, collectionName("workoutSessions")));
+  const deletes: Promise<void>[] = [];
+
+  for (const sessionSnapshot of sessionsSnapshot.docs) {
+    if (!shouldCleanupWorkoutSessionEvents(sessionSnapshot.data())) continue;
+
+    const eventsSnapshot = await getDocs(collection(sessionSnapshot.ref, "events"));
+
+    for (const eventSnapshot of eventsSnapshot.docs) {
+      deletes.push(deleteDoc(eventSnapshot.ref));
+    }
+  }
+
+  await Promise.all(deletes);
+  return deletes.length;
 }
 
 export function saveCompletedWorkoutSummary(summary: {

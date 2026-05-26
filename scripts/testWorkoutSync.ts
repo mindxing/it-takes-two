@@ -6,6 +6,7 @@ import {
   isJoinableRemoteSession,
   joinRemoteSessionState,
   shouldApplyWorkoutEvent,
+  shouldCleanupWorkoutSessionEvents,
   type SyncState,
 } from "../src/workoutSync.ts";
 import type { Exercise } from "../src/workoutData.ts";
@@ -175,6 +176,14 @@ function syncState(overrides: Partial<SyncState> = {}): SyncState {
   assert.equal(shouldApplyWorkoutEvent(current, activeSession({ sessionId: "session-2" })), false);
   assert.equal(shouldApplyWorkoutEvent(initialSession, activeSession({ sessionId: "session-2" })), true);
   assert.equal(shouldApplyWorkoutEvent(current, null), false);
+}
+
+{
+  assert.equal(shouldCleanupWorkoutSessionEvents(activeSession()), false);
+  assert.equal(shouldCleanupWorkoutSessionEvents(activeSession({ status: "completed", complete: true })), true);
+  assert.equal(shouldCleanupWorkoutSessionEvents(activeSession({ status: "cancelled" })), true);
+  assert.equal(shouldCleanupWorkoutSessionEvents({ status: "active", complete: true }), true);
+  assert.equal(shouldCleanupWorkoutSessionEvents({ complete: false }), true);
 }
 
 {

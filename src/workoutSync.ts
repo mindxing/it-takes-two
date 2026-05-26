@@ -78,6 +78,12 @@ export function shouldApplyWorkoutEvent(currentSession: WorkoutSession, eventSes
   return true;
 }
 
+export function shouldCleanupWorkoutSessionEvents(
+  session: Partial<Pick<WorkoutSession, "status" | "complete">> | null | undefined
+) {
+  return session?.status !== "active" || session.complete === true;
+}
+
 export function joinRemoteSessionState({
   state,
   remoteSession,

@@ -30,6 +30,7 @@
 - [x] Add Phase A workout group model/path helpers
 - [x] Add dry-run default group migration script
 - [x] Add group model and migration tests
+- [x] Purge temporary sync events for all non-active workout sessions
 
 ## Immediate
 

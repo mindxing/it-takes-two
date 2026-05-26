@@ -90,6 +90,8 @@ This document acts as both:
 
 The current session is saved through transactional event/session writes for major workout actions. The transaction appends an event under `workoutGroups/mike-victoria/workoutSessions/demo/events/{sequence}` and updates `workoutGroups/mike-victoria/workoutSessions/demo` with the latest session state, `updatedAt`, and `eventSequence`.
 
+Event documents are temporary sync messages. After a workout is completed or cancelled, the app best-effort deletes event documents for every non-active session in `workoutSessions`, not just the session that just ended. The durable session document and `completedWorkouts` history remain the source of truth, so a failed cleanup can be retried by the next workout completion or cancellation.
+
 ### Results Shape
 
 Each completed or skipped set is appended to `results`:
