@@ -14,6 +14,21 @@ The app uses Firestore as a small shared state store for a two-person workout tr
 - `currentBaselines/{person}`: per-person training baselines and success streaks.
 - `completedWorkouts/{autoId}`: immutable-ish workout history records used for summaries and progression.
 
+Phase A of the groups work adds code and scripts for the future group-scoped shape:
+
+```text
+workoutGroups/{groupId}
+workoutGroups/{groupId}/workoutPlans/{planId}
+workoutGroups/{groupId}/exercises/{exerciseId}
+workoutGroups/{groupId}/userProfiles/{memberId}
+workoutGroups/{groupId}/currentBaselines/{memberId}
+workoutGroups/{groupId}/workoutSessions/{sessionId}
+workoutGroups/{groupId}/workoutSessions/{sessionId}/events/{eventId}
+workoutGroups/{groupId}/completedWorkouts/{sessionId}
+```
+
+The runtime app still reads the current global collections until the group migration is run and the app data-access layer is flipped to group-scoped paths.
+
 There is also a local fallback workout definition in `src/workoutData.ts`. The database does not currently own all workout defaults. Instead, Firestore documents are merged with local TypeScript data at runtime.
 
 ## Collection: workoutSessions

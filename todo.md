@@ -27,11 +27,15 @@
 - [x] Add tandem exercise support
 - [x] Correct tandem order to alternate exercises
 - [x] Keep compound exercise movements grouped by person during tandem
+- [x] Add Phase A workout group model/path helpers
+- [x] Add dry-run default group migration script
+- [x] Add group model and migration tests
 
 ## Immediate
 
 - [ ] Push latest local commits when ready
-- [x] Commit docs updates
+- [ ] Run default group migration when ready
+- [ ] Flip app reads/writes to group-scoped paths after migration is verified
 - [x] Confirm local app reads `workoutPlans/default` successfully
 - [x] Confirm deployed app reads updated `workoutPlans/default` successfully
 - [ ] Test on real devices
@@ -57,6 +61,18 @@
 - [x] Separate current baselines from profile preferences
 - [ ] Decide whether set/reps/setPlan should live in `workoutPlans/default.items`
 - [ ] Add an admin/edit UI for workout plans, if manual Firebase editing becomes annoying
+
+## Groups
+
+- [x] Define the default `mike-victoria` workout group in code
+- [x] Define group-scoped Firestore path helpers
+- [x] Add non-destructive migration from global collections to `workoutGroups/{groupId}`
+- [ ] Run `npm run migrate:default-group:dry-run` from bash and inspect output
+- [ ] Run `npm run migrate:default-group` from bash when ready
+- [ ] Update app data access to use `workoutGroups/{groupId}/...`
+- [ ] Add group selection/onboarding UI
+- [ ] Add authentication
+- [ ] Add Firestore rules for group membership
 
 ## UX Improvements
 

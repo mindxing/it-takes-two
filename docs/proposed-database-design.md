@@ -17,6 +17,50 @@ The central design idea is clear ownership of information. Static data defines r
 
 ## Static Data
 
+### `workoutGroups`
+
+Workout groups are the ownership boundary for a two-person workout partnership.
+
+Phase A status: the app now has a default group model and a migration script that can copy the current global one-couple data under `workoutGroups/mike-victoria`, but the runtime app still reads the legacy global collections until the migration is run and verified.
+
+Example document: `workoutGroups/{groupId}`
+
+```ts
+{
+  id: string;
+  name: string;
+  memberIds: string[];
+  members: Record<string, {
+    id: string;
+    displayName: string;
+    role: "member";
+    active: boolean;
+  }>;
+  defaultWorkoutPlanId: string;
+  activeSessionId: string;
+  active: boolean;
+}
+```
+
+Recommended group-scoped collections:
+
+```text
+workoutGroups/{groupId}/workoutPlans/{planId}
+workoutGroups/{groupId}/exercises/{exerciseId}
+workoutGroups/{groupId}/userProfiles/{memberId}
+workoutGroups/{groupId}/currentBaselines/{memberId}
+workoutGroups/{groupId}/workoutSessions/{sessionId}
+workoutGroups/{groupId}/workoutSessions/{sessionId}/events/{eventId}
+workoutGroups/{groupId}/completedWorkouts/{sessionId}
+```
+
+Ownership:
+
+- Which two members belong to the workout partnership.
+- The group's default workout plan.
+- The group's active session pointer.
+- The security boundary for future Firestore rules.
+
 ### `exercises`
 
 Canonical library of all known exercise units.

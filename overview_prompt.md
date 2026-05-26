@@ -337,6 +337,30 @@ The seed script `scripts/seedWorkoutPlan.mjs` writes:
 
 The current seeded default plan includes Inner / Outer Thigh Machine and Lat Pulldown.
 
+## Workout Groups
+
+The app is currently still a one-couple runtime app, but Phase A of the groups work is in place.
+
+Implemented Phase A pieces:
+
+* Default group id: `mike-victoria`
+* Group model/path helper module: `src/groupModel.ts`
+* Group migration script: `scripts/migrateDefaultGroup.mjs`
+* Dry-run command: `npm run migrate:default-group:dry-run`
+* Tests for group paths and migration dry-runs
+
+Future group-scoped shape:
+
+* `workoutGroups/{groupId}`
+* `workoutGroups/{groupId}/workoutPlans/*`
+* `workoutGroups/{groupId}/exercises/*`
+* `workoutGroups/{groupId}/userProfiles/*`
+* `workoutGroups/{groupId}/currentBaselines/*`
+* `workoutGroups/{groupId}/workoutSessions/*`
+* `workoutGroups/{groupId}/completedWorkouts/*`
+
+The app has not yet been flipped to read/write those group paths.
+
 ---
 
 # Constraints

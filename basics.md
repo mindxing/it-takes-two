@@ -126,6 +126,48 @@ The reset scripts delete `workoutSessions` and `completedWorkouts` for the
 target collection prefix, then rewrite workout plans, exercises, user profiles,
 and current baselines.
 
+## Prepare Default Workout Group Data
+
+Phase A of the groups work adds a non-destructive migration script. It copies
+the current one-couple production collections into a default group shape under
+`workoutGroups/mike-victoria`.
+
+Preview the production migration:
+
+```bash
+npm run migrate:default-group:dry-run
+```
+
+Run the production migration:
+
+```bash
+npm run migrate:default-group
+```
+
+Preview the `tmp_` migration:
+
+```bash
+npm run migrate:default-group:tmp:dry-run
+```
+
+Run the `tmp_` migration:
+
+```bash
+npm run migrate:default-group:tmp
+```
+
+The migration writes/copies:
+
+```text
+workoutGroups/{groupId}
+workoutGroups/{groupId}/workoutPlans/*
+workoutGroups/{groupId}/exercises/*
+workoutGroups/{groupId}/userProfiles/*
+workoutGroups/{groupId}/currentBaselines/*
+workoutGroups/{groupId}/workoutSessions/* and nested events
+workoutGroups/{groupId}/completedWorkouts/*
+```
+
 If Firebase asks you to sign in:
 
 ```bash
