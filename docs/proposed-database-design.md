@@ -2,7 +2,7 @@
 
 This document describes the target database model for the workout app. It intentionally differs from the current implementation described in `database-architecture.md`.
 
-Status note: the implemented app now uses the same broad ownership split for `userProfiles` versus `currentBaselines`, but it still uses the fixed live session document `workoutSessions/demo` instead of creating fresh `workoutSessions/{sessionId}` documents.
+Status note: the implemented app now uses the same broad ownership split for `userProfiles` versus `currentBaselines`, and runtime data is scoped under `workoutGroups/mike-victoria`. It still uses the fixed live session document `workoutGroups/mike-victoria/workoutSessions/demo` instead of creating fresh `workoutSessions/{sessionId}` documents per workout.
 
 The central design idea is clear ownership of information. Static data defines reusable facts and preferences. Starting a workout creates a dynamic "work order" that copies the needed static data and resolves the correct targets for that workout.
 
@@ -21,7 +21,7 @@ The central design idea is clear ownership of information. Static data defines r
 
 Workout groups are the ownership boundary for a two-person workout partnership.
 
-Phase A status: the app now has a default group model and a migration script that can copy the current global one-couple data under `workoutGroups/mike-victoria`, but the runtime app still reads the legacy global collections until the migration is run and verified.
+Implementation status: the app has a default group model, a migration script that copies the current global one-couple data under `workoutGroups/mike-victoria`, and runtime Firestore access now uses the default group-scoped paths.
 
 Example document: `workoutGroups/{groupId}`
 

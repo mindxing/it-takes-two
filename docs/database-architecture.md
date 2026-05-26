@@ -4,17 +4,17 @@ This document describes the Firestore data model currently used by the app. It i
 
 ## High-Level Shape
 
-The app uses Firestore as a small shared state store for a two-person workout tracker. There are four active data areas:
+The app uses Firestore as a small shared state store for a two-person workout tracker. Runtime data is scoped under the default workout group:
 
-- `workoutSessions/demo`: the current shared workout session.
-- `workoutSessions/demo/events/{eventId}`: ordered event records for session-changing actions.
-- `workoutPlans/default`: the active workout plan and exercise ordering.
-- `exercises/{exerciseId}`: exercise metadata that can override or extend local fallback data.
-- `userProfiles/{person}`: person-specific working weights.
-- `currentBaselines/{person}`: per-person training baselines and success streaks.
-- `completedWorkouts/{autoId}`: immutable-ish workout history records used for summaries and progression.
+- `workoutGroups/mike-victoria/workoutSessions/demo`: the current shared workout session.
+- `workoutGroups/mike-victoria/workoutSessions/demo/events/{eventId}`: ordered event records for session-changing actions.
+- `workoutGroups/mike-victoria/workoutPlans/default`: the active workout plan and exercise ordering.
+- `workoutGroups/mike-victoria/exercises/{exerciseId}`: exercise metadata that can override or extend local fallback data.
+- `workoutGroups/mike-victoria/userProfiles/{person}`: person-specific preferences and strategies.
+- `workoutGroups/mike-victoria/currentBaselines/{person}`: per-person training baselines and success streaks.
+- `workoutGroups/mike-victoria/completedWorkouts/{sessionId}`: workout history records used for summaries and progression.
 
-Phase A of the groups work adds code and scripts for the future group-scoped shape:
+Generic group shape:
 
 ```text
 workoutGroups/{groupId}
@@ -27,13 +27,13 @@ workoutGroups/{groupId}/workoutSessions/{sessionId}/events/{eventId}
 workoutGroups/{groupId}/completedWorkouts/{sessionId}
 ```
 
-The runtime app still reads the current global collections until the group migration is run and the app data-access layer is flipped to group-scoped paths.
+The default runtime group id is `mike-victoria`. It can be overridden at build/dev time with `VITE_WORKOUT_GROUP_ID`.
 
 There is also a local fallback workout definition in `src/workoutData.ts`. The database does not currently own all workout defaults. Instead, Firestore documents are merged with local TypeScript data at runtime.
 
 ## Collection: workoutSessions
 
-### Document: `workoutSessions/demo`
+### Document: `workoutGroups/{groupId}/workoutSessions/demo`
 
 This is the single live session document. The app always reads and writes the fixed document id `demo`.
 
@@ -88,7 +88,7 @@ This document acts as both:
 - The durable current workout checkpoint.
 - The live cross-device sync object.
 
-The current session is saved through transactional event/session writes for major workout actions. The transaction appends an event under `workoutSessions/demo/events/{sequence}` and updates `workoutSessions/demo` with the latest session state, `updatedAt`, and `eventSequence`.
+The current session is saved through transactional event/session writes for major workout actions. The transaction appends an event under `workoutGroups/mike-victoria/workoutSessions/demo/events/{sequence}` and updates `workoutGroups/mike-victoria/workoutSessions/demo` with the latest session state, `updatedAt`, and `eventSequence`.
 
 ### Results Shape
 
@@ -266,7 +266,7 @@ For straight strategy users, the displayed set weight is the profile baseline.
 
 ## Collection: completedWorkouts
 
-### Documents: `completedWorkouts/{sessionId}`
+### Documents: `workoutGroups/{groupId}/completedWorkouts/{sessionId}`
 
 Primary fields:
 

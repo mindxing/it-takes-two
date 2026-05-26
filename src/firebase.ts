@@ -1,5 +1,6 @@
 import { initializeApp } from "firebase/app";
 import { getFirestore } from "firebase/firestore";
+import { defaultWorkoutGroupId, groupCollectionPath, type GroupScopedCollection } from "./groupModel";
 
 
 const firebaseConfig = {
@@ -16,8 +17,12 @@ const app = initializeApp(firebaseConfig);
 export const db = getFirestore(app);
 
 const collectionPrefix = import.meta.env.VITE_FIRESTORE_COLLECTION_PREFIX ?? "";
+const workoutGroupId = import.meta.env.VITE_WORKOUT_GROUP_ID ?? defaultWorkoutGroupId;
 
 export function collectionName(name: string) {
-  return `${collectionPrefix}${name}`;
+  return groupCollectionPath(workoutGroupId, name as GroupScopedCollection, collectionPrefix);
 }
 
+export function activeWorkoutGroupId() {
+  return workoutGroupId;
+}

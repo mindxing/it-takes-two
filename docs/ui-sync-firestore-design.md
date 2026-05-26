@@ -16,9 +16,9 @@ The UI renders one of several modes based on that state:
 
 Firestore provides three kinds of data:
 
-- Startup configuration: workout plan, exercise metadata, user profiles, completed workout history.
-- Live synchronization: `workoutSessions/demo`.
-- Persisted history: `completedWorkouts`.
+- Startup configuration: workout plan, exercise metadata, user profiles, current baselines, completed workout history.
+- Live synchronization: `workoutGroups/mike-victoria/workoutSessions/demo`.
+- Persisted history: `workoutGroups/mike-victoria/completedWorkouts`.
 
 The current design is optimistic in some places and blocking in others. Stepper changes update local UI immediately and save shortly after. Major navigation actions update local state immediately, then await Firestore before clearing their pending button state.
 
@@ -74,14 +74,14 @@ Owns Firestore read/write helpers and workout-derived calculations.
 Primary responsibilities:
 
 - Save and listen to the live workout session.
-- Append ordered event records under `workoutSessions/demo/events`.
+- Append ordered event records under `workoutGroups/mike-victoria/workoutSessions/demo/events`.
 - Load the current workout session.
 - Load and merge workout plan data.
 - Load user profile settings.
 - Load and save current baselines.
 - Save and load completed workout summaries.
 - Calculate exercise outcomes.
-- Calculate profile progression from history.
+- Calculate baseline progression from completed workout results.
 
 ### `src/workoutData.ts`
 
@@ -107,8 +107,8 @@ Primary responsibilities:
 
 When the app mounts, several effects run:
 
-1. Subscribe to `workoutSessions/demo` with `onSnapshot`.
-2. Load completed workout summaries from `completedWorkouts`.
+1. Subscribe to `workoutGroups/mike-victoria/workoutSessions/demo` with `onSnapshot`.
+2. Load completed workout summaries from `workoutGroups/mike-victoria/completedWorkouts`.
 3. Load the workout plan from Firestore and merge it with local fallback data.
 4. Load user profiles from Firestore and merge them with local defaults.
 5. Load current baselines from Firestore and merge them with local defaults.
@@ -123,7 +123,13 @@ The home screen may show:
 
 ## Live Session Sync Flow
 
-The app listens to `workoutSessions/demo`.
+The app listens to the group-scoped active session.
+
+At runtime, the path is group-scoped through `src/firebase.ts`, so the default production path is:
+
+```text
+workoutGroups/mike-victoria/workoutSessions/demo
+```
 
 When a snapshot arrives:
 
@@ -310,9 +316,9 @@ When the final set of the final exercise is recorded:
 4. Completed results are summarized.
 5. Exercise outcomes are calculated.
 6. Baseline progression is calculated from the planned-vs-actual work totals.
-7. A completed workout summary is written to `completedWorkouts/{sessionId}`.
+7. A completed workout summary is written to `workoutGroups/mike-victoria/completedWorkouts/{sessionId}`.
 8. Updated `currentBaselines/*` are written.
-9. The completed session is committed to `workoutSessions/demo`.
+9. The completed session is committed to `workoutGroups/mike-victoria/workoutSessions/demo`.
 
 Workout finalization is transactional and avoids duplicate completed-workout creation for the same session id.
 
@@ -324,7 +330,7 @@ The completed screen derives totals from the current session:
 - Total weight lifted.
 - Per-exercise details.
 
-The chart uses `completedWorkouts`, sorted by `completedAt`, and plots `totalWeightLifted`.
+The chart uses the group-scoped `completedWorkouts`, sorted by `completedAt`, and plots `totalWeightLifted`.
 
 The home screen's "View Latest Workout Results" button sorts completed workouts by `completedAt`, selects the latest one, and builds a lightweight past session from its results.
 
@@ -361,7 +367,7 @@ If profile documents contain missing or unexpected weight keys, the UI falls bac
 - Should the app treat local UI progression as authoritative and sync in the background?
 - Should the live session be split into smaller documents or event records instead of one mutable object?
 - Should exercise definitions and default weights live entirely in Firestore, entirely in code, or in a clearer hybrid?
-- Should profile progression be explicit, reviewable, or versioned instead of automatically applied at workout start?
+- Should baseline progression be explicit, reviewable, or versioned instead of automatically applied at workout completion?
 - Should `Done / Next`, `Skip`, and `Postpone` ever be blocked by Firestore latency?
 - Should incoming snapshots be ignored when they were written by the same client or have an older revision?
 - Should completed workout history be built from immutable events rather than copied session results?

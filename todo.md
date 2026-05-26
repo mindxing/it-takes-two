@@ -34,8 +34,8 @@
 ## Immediate
 
 - [ ] Push latest local commits when ready
-- [ ] Run default group migration when ready
-- [ ] Flip app reads/writes to group-scoped paths after migration is verified
+- [x] Run default group migration when ready
+- [x] Flip app reads/writes to group-scoped paths after migration is verified
 - [x] Confirm local app reads `workoutPlans/default` successfully
 - [x] Confirm deployed app reads updated `workoutPlans/default` successfully
 - [ ] Test on real devices
@@ -67,9 +67,9 @@
 - [x] Define the default `mike-victoria` workout group in code
 - [x] Define group-scoped Firestore path helpers
 - [x] Add non-destructive migration from global collections to `workoutGroups/{groupId}`
-- [ ] Run `npm run migrate:default-group:dry-run` from bash and inspect output
-- [ ] Run `npm run migrate:default-group` from bash when ready
-- [ ] Update app data access to use `workoutGroups/{groupId}/...`
+- [x] Run `npm run migrate:default-group:dry-run` from bash and inspect output
+- [x] Run `npm run migrate:default-group` from bash when ready
+- [x] Update app data access to use `workoutGroups/{groupId}/...`
 - [ ] Add group selection/onboarding UI
 - [ ] Add authentication
 - [ ] Add Firestore rules for group membership

@@ -126,6 +126,10 @@ The reset scripts delete `workoutSessions` and `completedWorkouts` for the
 target collection prefix, then rewrite workout plans, exercises, user profiles,
 and current baselines.
 
+The app now reads group-scoped data. If you reseed the legacy/global
+collections, rerun the default-group migration afterward so
+`workoutGroups/mike-victoria` receives the same updates.
+
 ## Prepare Default Workout Group Data
 
 Phase A of the groups work adds a non-destructive migration script. It copies
@@ -166,6 +170,18 @@ workoutGroups/{groupId}/userProfiles/*
 workoutGroups/{groupId}/currentBaselines/*
 workoutGroups/{groupId}/workoutSessions/* and nested events
 workoutGroups/{groupId}/completedWorkouts/*
+```
+
+After the groups runtime switch, the app reads and writes the default group:
+
+```text
+workoutGroups/mike-victoria/...
+```
+
+You can point a build at a different group id later with:
+
+```bash
+VITE_WORKOUT_GROUP_ID=some-group-id npm run dev
 ```
 
 If Firebase asks you to sign in:

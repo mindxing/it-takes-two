@@ -189,7 +189,7 @@ Detailed results are toggleable.
 
 # History & Graph
 
-Completed workouts saved to Firestore (`completedWorkouts`).
+Completed workouts are saved to the active group's `completedWorkouts` collection.
 
 Each completed workout includes:
 
@@ -339,7 +339,7 @@ The current seeded default plan includes Inner / Outer Thigh Machine and Lat Pul
 
 ## Workout Groups
 
-The app is currently still a one-couple runtime app, but Phase A of the groups work is in place.
+The app now uses a default workout group at runtime.
 
 Implemented Phase A pieces:
 
@@ -348,6 +348,7 @@ Implemented Phase A pieces:
 * Group migration script: `scripts/migrateDefaultGroup.mjs`
 * Dry-run command: `npm run migrate:default-group:dry-run`
 * Tests for group paths and migration dry-runs
+* Runtime Firestore path switch through `src/firebase.ts`
 
 Future group-scoped shape:
 
@@ -359,7 +360,7 @@ Future group-scoped shape:
 * `workoutGroups/{groupId}/workoutSessions/*`
 * `workoutGroups/{groupId}/completedWorkouts/*`
 
-The app has not yet been flipped to read/write those group paths.
+The default runtime group is `mike-victoria`. A different build/dev session can point at another group with `VITE_WORKOUT_GROUP_ID`.
 
 ---
 
