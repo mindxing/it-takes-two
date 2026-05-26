@@ -16,37 +16,51 @@
 - [x] Add compound exercise support for inner/outer thigh machine
 - [x] Replace dumbbell Romanian deadlift with thigh machine in seeded default plan
 - [x] Snapshot loaded workout plan into new workout sessions
+- [x] Redesign Firestore collections around `workoutPlans`, `exercises`, `userProfiles`, `currentBaselines`, `workoutSessions`, and `completedWorkouts`
+- [x] Move from `tmp_` collections to production collections
+- [x] Replace Glute Machine with Lat Pulldown
+- [x] Extract workout progression logic into `src/workoutEngine.ts`
+- [x] Extract sync/join/cancel/stale-session decisions into `src/workoutSync.ts`
+- [x] Add automated baseline progression tests
+- [x] Add automated workout engine tests
+- [x] Add automated sync state tests
+- [x] Add tandem exercise support
+- [x] Correct tandem order to alternate exercises
+- [x] Keep compound exercise movements grouped by person during tandem
 
 ## Immediate
 
 - [ ] Push latest local commits when ready
-- [ ] Commit docs updates
+- [x] Commit docs updates
 - [x] Confirm local app reads `workoutPlans/default` successfully
-- [ ] Confirm deployed app reads updated `workoutPlans/default` successfully
+- [x] Confirm deployed app reads updated `workoutPlans/default` successfully
 - [ ] Test on real devices
   - [x] Start / Join workout
-  - [ ] Warm-up timer
+  - [x] Warm-up timer
   - [ ] Rapid rep/weight taps on slow gym internet
   - [x] Who-goes-first sync
-  - [ ] Postpone exercise sync
+  - [x] Postpone exercise sync
   - [x] Cancel workout sync
-  - [ ] Complete workout sync
+  - [x] Complete workout sync
   - [ ] Completed history graph
-  - [ ] Weight progression updates
+  - [x] Weight progression updates
   - [x] Inner / outer thigh machine flow
+  - [x] Tandem simple exercise flow
+  - [x] Tandem with compound exercise flow
 
 ## Data-Driven Workout Plans
 
 - [x] Decide which exercises to replace
 - [x] Add new `exercises/{exerciseId}` documents
 - [x] Update `workoutPlans/default.exerciseIds`
-- [x] Add default profile weights for new exercise IDs
+- [x] Add default current baselines for new exercise IDs
+- [x] Separate current baselines from profile preferences
 - [ ] Decide whether set/reps/setPlan should live in `workoutPlans/default.items`
 - [ ] Add an admin/edit UI for workout plans, if manual Firebase editing becomes annoying
 
 ## UX Improvements
 
-- [ ] Add cancel workout to the who goes first screen
+- [x] Add cancel workout to the who goes first screen
 - [ ] Add loading states
   - [ ] Connecting
   - [ ] Saving
@@ -57,14 +71,16 @@
 - [ ] Make current state clearer: person, set, exercise
 - [ ] Remove debug text from completed workout screen
 - [ ] Improve graph styling
+- [ ] Improve tandem selection UI wording/guardrails after more gym testing
 
 ## Reliability
 
 - [ ] Add visible Firestore write failure handling
 - [ ] Handle missing or invalid Firestore workout plan data gracefully in the UI
-- [ ] Protect workout completion summary from duplicate writes
-- [ ] Consider transactions for critical transitions like Done / Next
+- [x] Protect workout completion summary from duplicate writes
+- [x] Use transactional event/session writes for critical transitions
 - [ ] Auto-refresh completed workouts instead of loading only after completion
+- [ ] Add browser-level smoke tests for critical UI wiring
 
 ## Security
 
@@ -85,7 +101,6 @@
 
 - [ ] Improve device/person selection: Mike vs Victoria
 - [ ] Persist user identity per device
-- [ ] Improve weight progression algorithm
 - [ ] Add session history browsing
 - [ ] Add more workout metrics
 - [ ] Add custom domain
@@ -98,4 +113,6 @@
 - Local hardcoded workout data remains the fallback if Firestore plan data is missing or invalid.
 - Exercise IDs are the durable keys; exercise names are display text and backward compatibility.
 - Compound exercises use movement IDs for per-movement weights and results.
+- Tandem is session-only state; it does not require a database schema change.
+- The core workout rules are tested through `npm run test`, not browser automation.
 - Keep changes incremental and test frequently on real phones.

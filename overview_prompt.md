@@ -35,6 +35,7 @@ Synced actions include:
 * Exercise postponing
 * Workout cancellation
 * Workout completion
+* Tandem exercise selection and progression
 
 ---
 
@@ -45,7 +46,6 @@ Synced actions include:
 * Start / Join workout (single-button logic)
 * Warm-up → exercises → completion
 * Alternating sets between two people
-* Auto-skip support for absent participant
 * Cancel and complete sync across devices
 
 ### Exercise Flow
@@ -72,6 +72,23 @@ Current compound exercise:
 * Inner / Outer Thigh Machine
   * Inner Thigh
   * Outer Thigh
+
+### Tandem Exercises
+
+Tandem mode lets the current exercise be paired with a later exercise in the workout.
+
+The user selects the tandem exercise on the "Who goes first?" screen. The selected exercise is moved next to the current exercise inside the active session's `reorderedWorkout`. This is session-only state and does not change the default workout plan or exercise database documents.
+
+The tandem turn order alternates the exercise context:
+
+* First person / primary exercise / set N
+* Second person / tandem exercise / set N
+* Second person / primary exercise / set N
+* First person / tandem exercise / set N
+
+Then the same pattern repeats for the next set.
+
+For compound exercises, a person completes all movements for that exercise before moving to the next tandem turn. Movements are not interlaced between people.
 
 ### Weight Strategies
 
@@ -189,21 +206,29 @@ History graph:
 
 ---
 
-# User Profiles
+# User Profiles And Baselines
 
-Separate Firestore collection: `userProfiles`
+Separate Firestore collections:
 
-Stores:
+* `userProfiles`
+* `currentBaselines`
 
-* Base weight per exercise
-* Per-user exercise defaults
-* Movement-specific weights for compound exercises
+`userProfiles` stores:
+
+* User display/preference data
+* Set progression strategy
+* Baseline progression strategy
+
+`currentBaselines` stores:
+
+* Baseline weight per exercise or movement
+* Success streak per exercise or movement
 
 Behavior:
 
-* Profiles load at startup
+* Profiles and baselines load at startup
 * Safe fallback defaults exist
-* Profiles persist across sessions
+* Baselines persist across sessions
 
 ---
 
@@ -211,13 +236,17 @@ Behavior:
 
 Weights progress automatically after completed workouts.
 
-Progression logic considers:
+Progression logic compares planned total work against actual total work for each exercise/movement:
 
-* completed vs skipped sets
-* reps achieved vs expected
-* workout history
+* `actual / planned < 0.95`: decrease baseline 5%, rounded down to nearest 5 lb.
+* `actual / planned > 1.05`: increase baseline 5%, rounded up to nearest 5 lb.
+* Within 0.95-1.05: increment success streak.
+* `fast`: increase after 2 successful workouts.
+* `medium`: increase after 3 successful workouts.
+* `slow`: increase after 4 successful workouts.
+* `straight`: no automatic baseline changes.
 
-Profile updates are written back to Firestore.
+Baseline updates are written back to `currentBaselines`.
 
 ---
 
@@ -254,7 +283,26 @@ Recent fixes include:
 * Deterministic logic
 * Minimal local-only state
 * Incremental evolution
-* Avoid major refactors
+* Keep the GUI thin where practical
+* Put workout rules and sync decisions in testable modules
+
+## Testable Logic
+
+Core behavior is covered by direct automated tests:
+
+* `src/workoutEngine.ts`
+  * set/person/exercise advancement
+  * compound movement order
+  * tandem order
+  * warmup, skip, postpone, completion
+* `src/baselineProgression.ts`
+  * multi-workout baseline progression
+  * fast/medium/slow/straight strategies
+  * immediate up/down adjustments
+* `src/workoutSync.ts`
+  * join/cancel/stale-session behavior
+  * incoming active/completed/cancelled sessions
+  * event session-id filtering
 
 ## State Model
 
@@ -274,7 +322,9 @@ Collections/documents:
 * `exercises/{exerciseId}`
   * stores active state, type, display name, and lightweight metadata
 * `userProfiles/{person}`
-  * stores exercise and movement weights
+  * stores person-level preferences and progression strategies
+* `currentBaselines/{person}`
+  * stores exercise and movement baseline weights and success streaks
 
 The app still keeps canonical local workout definitions as a fallback and to provide complete set/rep/default data for known exercises. Firestore can keep exercise documents minimal.
 
@@ -282,9 +332,10 @@ The seed script `scripts/seedWorkoutPlan.mjs` writes:
 
 * `workoutPlans/default`
 * `exercises/*`
-* movement profile weights for the thigh machine
+* `userProfiles/*`
+* `currentBaselines/*`
 
-The current seeded default plan replaces Dumbbell Romanian Deadlift with Inner / Outer Thigh Machine
+The current seeded default plan includes Inner / Outer Thigh Machine and Lat Pulldown.
 
 ---
 
@@ -328,5 +379,6 @@ Current development phase:
 * Edge-case handling
 * Synchronization bug fixes
 * Multi-device consistency improvements
+* Tandem usability testing
 
 ---

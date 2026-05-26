@@ -2,6 +2,8 @@
 
 This document describes the target syncing strategy for the workout app. It assumes the proposed database model in `proposed-database-design.md`, where starting a workout creates a fresh `workoutSessions/{sessionId}` work order.
 
+Status note: the app has implemented part of this strategy, but still uses the fixed live document `workoutSessions/demo`. Current major actions append ordered events under `workoutSessions/demo/events/{sequence}` and update the durable `demo` session in the same transaction.
+
 The core idea is:
 
 - The workout session document is the durable source of truth.

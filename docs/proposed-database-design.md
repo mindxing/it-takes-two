@@ -2,6 +2,8 @@
 
 This document describes the target database model for the workout app. It intentionally differs from the current implementation described in `database-architecture.md`.
 
+Status note: the implemented app now uses the same broad ownership split for `userProfiles` versus `currentBaselines`, but it still uses the fixed live session document `workoutSessions/demo` instead of creating fresh `workoutSessions/{sessionId}` documents.
+
 The central design idea is clear ownership of information. Static data defines reusable facts and preferences. Starting a workout creates a dynamic "work order" that copies the needed static data and resolves the correct targets for that workout.
 
 ## Design Principles
@@ -183,6 +185,7 @@ Example document: `currentBaselines/{userId}`
   baselines: Record<string, {
     weight: number;
     reps?: number;
+    successStreak: number;
     updatedAt: string;
     lastAdjustmentId?: string;
   }>;
@@ -199,11 +202,11 @@ Ownership:
 - Current baseline weight/reps per user and exercise/movement.
 - The values used to generate the next active workout.
 
-Update timing:
+Update timing in the target design:
 
-- Updated at the beginning of a workout.
-- Progression rules inspect prior completed workouts.
-- Adjusted baselines are then used to generate the active workout work order.
+- Updated when progression is applied.
+- The implemented app currently applies progression at workout finalization.
+- Progression rules compare actual work against the planned work generated from the prior baseline.
 
 Does not own:
 
@@ -228,7 +231,7 @@ Example document: `baselineAdjustments/{adjustmentId}`
   oldReps?: number;
   newReps?: number;
 
-  reason: "last_3_exact" | "last_2_up" | "last_2_down" | "manual";
+  reason: "ratio_low" | "ratio_high" | "success_streak" | "manual";
   sourceWorkoutIds?: string[];
 
   createdAt: string;
@@ -356,11 +359,11 @@ Starting a workout should be a deliberate creation step:
 2. App loads the template.
 3. App loads the users' profiles.
 4. App loads the users' current baselines.
-5. App reviews prior completed sessions and applies progression rules.
-6. App updates `currentBaselines` for any changed baselines.
-7. App creates a new `workoutSessions/{sessionId}` document.
-8. The session contains copied exercise/template data and resolved targets.
-9. The workout UI runs from this session document.
+5. App creates a new `workoutSessions/{sessionId}` document.
+6. The session contains copied exercise/template data and resolved targets.
+7. The workout UI runs from this session document.
+
+In the current implementation, baseline progression is applied at workout finalization instead of at the next workout start.
 
 After step 7, the active workout should not need to query `exercises`, `workoutTemplates`, or `currentBaselines` to decide what the next set should be.
 

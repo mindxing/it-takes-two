@@ -26,7 +26,7 @@ The current design is optimistic in some places and blocking in others. Stepper 
 
 ### `src/App.tsx`
 
-Owns the UI state machine and most workout transition logic.
+Owns the React UI state machine and orchestration.
 
 Primary responsibilities:
 
@@ -34,9 +34,38 @@ Primary responsibilities:
 - Loads workout plan, user profiles, and completed workouts.
 - Listens to the live Firestore session.
 - Decides which screen to render.
-- Calculates next set/person/movement after Done or Skip.
-- Handles start, warm-up, choosing first person, postponing, canceling, and completing.
+- Calls the workout engine for start, warm-up, choosing first person, postponing, set completion, skipping, and tandem progression.
 - Queues debounced saves for rep/weight steppers.
+
+### `src/workoutEngine.ts`
+
+Owns deterministic workout rules.
+
+Primary responsibilities:
+
+- Start and warm-up state transitions.
+- Choosing first person.
+- Optional tandem exercise selection.
+- Rep/weight adjustment state.
+- Postpone exercise state.
+- Recording completed/skipped sets.
+- Advancing movement, person, set, exercise, tandem turn, or completion state.
+
+This module is tested directly by `scripts/testWorkoutEngine.ts`.
+
+### `src/workoutSync.ts`
+
+Owns deterministic sync/join/cancel/stale-session decisions.
+
+Primary responsibilities:
+
+- Decide whether a remote session is joinable.
+- Ignore stale active sessions.
+- Apply incoming active/completed/cancelled sessions to local sync state.
+- Filter workout events by session id.
+- Build local/cancelled state for cancel actions.
+
+This module is tested directly by `scripts/testWorkoutSync.ts`.
 
 ### `src/workoutSession.ts`
 
@@ -45,9 +74,11 @@ Owns Firestore read/write helpers and workout-derived calculations.
 Primary responsibilities:
 
 - Save and listen to the live workout session.
+- Append ordered event records under `workoutSessions/demo/events`.
 - Load the current workout session.
 - Load and merge workout plan data.
-- Load and save user profiles.
+- Load user profile settings.
+- Load and save current baselines.
 - Save and load completed workout summaries.
 - Calculate exercise outcomes.
 - Calculate profile progression from history.
@@ -80,6 +111,7 @@ When the app mounts, several effects run:
 2. Load completed workout summaries from `completedWorkouts`.
 3. Load the workout plan from Firestore and merge it with local fallback data.
 4. Load user profiles from Firestore and merge them with local defaults.
+5. Load current baselines from Firestore and merge them with local defaults.
 
 The start button is disabled until the workout plan has loaded. User profiles and completed workouts load independently.
 
@@ -124,12 +156,12 @@ That function:
 1. Clears any pending debounced stepper save.
 2. Adds a new `localRevision`.
 3. Adds this client's `lastWriterId`.
-4. Updates local React state immediately.
-5. Sets `pendingAction` for the button/action.
-6. Awaits `saveWorkoutSession`.
+4. Sets `pendingAction` for the button/action.
+5. Appends a workout event and updates the durable session inside a Firestore transaction.
+6. Updates local React state after the transaction resolves.
 7. Clears `pendingAction` when the save finishes.
 
-The important behavior is that the visible screen can advance immediately because local state is set before the save. However, the action button stays disabled until the Firestore write resolves.
+The important behavior is that major navigation actions wait for the Firestore transaction before local state is advanced. Stepper changes are still optimistic and debounced.
 
 ## Stepper Save Flow
 
@@ -153,13 +185,11 @@ On the home screen, Start Workout:
 1. Sets `pendingAction` to `start`.
 2. Calls `joinActiveWorkout`.
 3. If a joinable remote session exists, uses that remote session.
-4. Otherwise calculates profile progression from completed workout history.
-5. If progression changed profiles, saves both user profile documents.
-6. Creates a new active session from the current local state.
-7. Stores `reorderedWorkout: baseWorkout` in the session.
-8. Commits the session to Firestore.
+4. Otherwise creates a new active session from the current local state.
+5. Stores `reorderedWorkout: baseWorkout` in the session.
+6. Commits the session to Firestore.
 
-This path can perform multiple Firestore reads/writes before the workout begins.
+Baseline progression is now applied at workout completion, not when starting the next workout.
 
 ## Warm-Up Flow
 
@@ -194,6 +224,18 @@ Choosing a person:
 
 The current person's starting weight depends on `userProfiles`, the exercise or movement id, and the person's strategy.
 
+### Tandem Selection
+
+The "Who goes first?" screen also offers a Tandem dropdown when there are later exercises available.
+
+Selecting a tandem exercise:
+
+1. Moves the selected later exercise next to the current exercise in `reorderedWorkout`.
+2. Stores a `tandem` cursor on the session.
+3. Starts the current exercise with the selected first person.
+
+Tandem is session-only state and does not alter Firestore exercise definitions or the default workout plan.
+
 ## Active Set Flow
 
 The active set screen shows:
@@ -217,7 +259,20 @@ The function:
 3. Advances to the next movement, person, set, exercise, or completion state.
 4. Commits the new session.
 
-For compound exercises, movement advances before switching people. For regular exercises, the flow alternates through both people for each set.
+For compound exercises, movement advances before switching people. For regular solo exercises, the flow alternates through both people for each set.
+
+For tandem exercises, each set uses this turn order:
+
+```text
+first person / primary exercise
+second person / tandem exercise
+second person / primary exercise
+first person / tandem exercise
+```
+
+Then the same pattern repeats for the next set. This alternates the exercise context in the UI, which makes data entry easier during a real workout.
+
+When either exercise is compound, a person completes all movements for that exercise before moving to the next tandem turn. Compound movements are not interlaced between people.
 
 ## Postpone Exercise Flow
 
@@ -254,10 +309,12 @@ When the final set of the final exercise is recorded:
 3. `completedAt` is set.
 4. Completed results are summarized.
 5. Exercise outcomes are calculated.
-6. A completed workout summary is written to `completedWorkouts`.
-7. The completed session is committed to `workoutSessions/demo`.
+6. Baseline progression is calculated from the planned-vs-actual work totals.
+7. A completed workout summary is written to `completedWorkouts/{sessionId}`.
+8. Updated `currentBaselines/*` are written.
+9. The completed session is committed to `workoutSessions/demo`.
 
-The completed workout summary save is fire-and-forget. The live session commit is awaited through `commitSession`.
+Workout finalization is transactional and avoids duplicate completed-workout creation for the same session id.
 
 ## Summary And History Flow
 
@@ -287,6 +344,7 @@ The current app has three different interaction models:
 - Fully awaited actions: start, warm-up, choose first, postpone, done, skip.
 - Optimistic debounced actions: rep and weight steppers.
 - Fire-and-forget actions: cancel workout, completed workout summary save, failed stepper save logging.
+- Transactional finalization: completed workout summary, current baseline updates, and completed session state.
 
 Because awaited actions keep `pendingAction` set until Firestore responds, slow network or Firestore latency can make buttons look disabled for several seconds.
 
@@ -307,3 +365,4 @@ If profile documents contain missing or unexpected weight keys, the UI falls bac
 - Should `Done / Next`, `Skip`, and `Postpone` ever be blocked by Firestore latency?
 - Should incoming snapshots be ignored when they were written by the same client or have an older revision?
 - Should completed workout history be built from immutable events rather than copied session results?
+- Should the tandem selector eventually become a richer picker with search, descriptions, or disabled incompatible choices?
