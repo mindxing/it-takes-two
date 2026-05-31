@@ -67,6 +67,28 @@ Primary responsibilities:
 
 This module is tested directly by `scripts/testWorkoutSync.ts`.
 
+### `src/groupSelection.ts`
+
+Owns deterministic temporary group-selection rules.
+
+Primary responsibilities:
+
+- Filter active workout groups for the assumed user.
+- Auto-select the only eligible group.
+- Require selection when more than one eligible group exists.
+
+This module is tested directly by `scripts/testGroupSelection.ts`.
+
+### `src/groupData.ts`
+
+Owns Firestore reads for workout group metadata.
+
+Primary responsibilities:
+
+- Load `workoutGroups/*`.
+- Return active groups where the assumed user is an active member.
+- Fall back to the default group while login/auth is not implemented.
+
 ### `src/workoutSession.ts`
 
 Owns Firestore read/write helpers and workout-derived calculations.
@@ -108,10 +130,12 @@ Primary responsibilities:
 
 ## App Startup Flow
 
-When the app mounts, several effects run:
+When the app mounts, it first loads eligible workout groups for the assumed user (`Mike` by default). If there is one eligible group, it is selected automatically. If there is more than one, the home screen shows a group selector before loading workout data.
 
-1. Subscribe to `workoutSessions/mike-victoria_demo` with `onSnapshot`.
-2. Load completed workout summaries from `completedWorkouts` where `groupId` is `mike-victoria`.
+After a group is selected, several effects run:
+
+1. Subscribe to that group's active `workoutSessions/{groupId}_demo` document with `onSnapshot`.
+2. Load completed workout summaries from `completedWorkouts` where `groupId` is the selected group id.
 3. Load the workout plan from Firestore and merge it with local fallback data.
 4. Load user profiles from Firestore and merge them with local defaults.
 5. Load current baselines from Firestore and merge them with local defaults.
@@ -120,6 +144,8 @@ The start button is disabled until the workout plan has loaded. User profiles an
 
 The home screen may show:
 
+- `Loading workout group...` while group metadata is loading.
+- A group selector if the assumed user belongs to multiple active groups.
 - `Loading Workout...` while the plan is loading.
 - `Join Workout` if a live remote session is detected.
 - `Start Workout` otherwise.

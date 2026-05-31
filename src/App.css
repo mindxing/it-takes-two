@@ -63,6 +63,11 @@ button:disabled {
   gap: 12px;
 }
 
+.group-list {
+  display: grid;
+  gap: 12px;
+}
+
 .select-field {
   display: grid;
   gap: 8px;

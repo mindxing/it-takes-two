@@ -72,7 +72,8 @@
 - [x] Run `npm run migrate:default-group:dry-run` from bash and inspect output
 - [x] Run `npm run migrate:default-group` from bash when ready
 - [x] Update app data access to use `workoutGroups/{groupId}/...`
-- [ ] Add group selection/onboarding UI
+- [x] Add temporary group selection layer for assumed Mike/Victoria user
+- [ ] Add full group onboarding UI
 - [ ] Add authentication
 - [ ] Add Firestore rules for group membership
 

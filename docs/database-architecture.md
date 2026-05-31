@@ -30,7 +30,7 @@ completedWorkouts/{sessionId}
 
 The default runtime group id is `mike-victoria`. It can be overridden at build/dev time with `VITE_WORKOUT_GROUP_ID`.
 
-Until authentication is added, the app assumes the current user is one of the default group members (`Mike` or `Victoria`). The group metadata is still stored in Firestore so the future login flow can load a user's groups, skip selection when only one group is available, and show a group picker when the user belongs to multiple groups.
+Until authentication is added, the app assumes the current user is one of the default group members (`Mike` by default, or `Victoria` with `VITE_ASSUMED_USER_ID=Victoria`). The app loads active groups where the assumed user is an active member, auto-selects the only eligible group, and shows a picker when the user belongs to multiple groups.
 
 There is also a local fallback workout definition in `src/workoutData.ts`. The database does not currently own all workout defaults. Instead, Firestore documents are merged with local TypeScript data at runtime.
 

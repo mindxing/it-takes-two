@@ -25,7 +25,7 @@ const app = initializeApp(firebaseConfig);
 export const db = getFirestore(app);
 
 const collectionPrefix = import.meta.env.VITE_FIRESTORE_COLLECTION_PREFIX ?? "";
-const workoutGroupId = import.meta.env.VITE_WORKOUT_GROUP_ID ?? defaultWorkoutGroupId;
+let workoutGroupId = import.meta.env.VITE_WORKOUT_GROUP_ID ?? defaultWorkoutGroupId;
 const groupScopedCollections = new Set<string>(["workoutPlans", "exercises", "userProfiles"]);
 
 export function collectionName(name: string) {
@@ -38,6 +38,14 @@ export function collectionName(name: string) {
 
 export function activeWorkoutGroupId() {
   return workoutGroupId;
+}
+
+export function setActiveWorkoutGroupId(groupId: string) {
+  workoutGroupId = groupId || defaultWorkoutGroupId;
+}
+
+export function firestoreCollectionPrefix() {
+  return collectionPrefix;
 }
 
 export function activeWorkoutSessionDocumentId() {

@@ -193,6 +193,13 @@ You can point a build at a different group id later with:
 VITE_WORKOUT_GROUP_ID=some-group-id npm run dev
 ```
 
+Until Firebase Auth exists, local development assumes the user is Mike. To test
+the temporary Victoria path:
+
+```bash
+VITE_ASSUMED_USER_ID=Victoria npm run dev
+```
+
 If Firebase asks you to sign in:
 
 ```bash

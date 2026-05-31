@@ -1,6 +1,10 @@
 import { useCallback, useEffect, useState, useRef } from "react";
 import "./App.css";
 import { people, workout, type Person, type Exercise } from "./workoutData";
+import { setActiveWorkoutGroupId } from "./firebase";
+import { loadWorkoutGroupsForUser } from "./groupData";
+import { defaultWorkoutGroup, type WorkoutGroup } from "./groupModel";
+import { chooseWorkoutGroup, defaultAssumedUserId, isAssumedUserId, type AssumedUserId } from "./groupSelection";
 import { appendWorkoutEvent, cleanupEventsForNonActiveWorkoutSessions, listenToWorkoutEvents, listenToWorkoutSession, loadCurrentWorkoutSession } from "./workoutSession";
 import { finalizeCompletedWorkout, loadCompletedWorkoutSummaries, loadCurrentBaselineStates, loadUserProfileSettings, loadWorkoutPlan, calculateExerciseOutcomes, calculateProgressedUserProfilesFromHistory, type BaselineProgressionStrategy, type SetResult, type ExerciseOutcomes, type UserBaselines, type WorkoutEventType } from "./workoutSession";
 import {
@@ -41,6 +45,9 @@ const APP_VERSION = __APP_VERSION__;
 const CLIENT_ID =
   globalThis.crypto?.randomUUID?.() ??
   `client-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+const ASSUMED_USER_ID: AssumedUserId = isAssumedUserId(import.meta.env.VITE_ASSUMED_USER_ID)
+  ? import.meta.env.VITE_ASSUMED_USER_ID
+  : defaultAssumedUserId;
 
 type CompletedWorkout = {
   id: string;
@@ -257,6 +264,9 @@ function App() {
   const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
   const [workoutPlanLoaded, setWorkoutPlanLoaded] = useState(false);
   const [tandemExerciseId, setTandemExerciseId] = useState("");
+  const [selectedGroup, setSelectedGroup] = useState<WorkoutGroup | null>(null);
+  const [availableGroups, setAvailableGroups] = useState<WorkoutGroup[]>([]);
+  const [groupStatus, setGroupStatus] = useState<"loading" | "ready" | "needs-selection">("loading");
   const sessionRef = useRef(session);
   const activeRemoteSessionRef = useRef<WorkoutSession | null>(null);
   const viewingPastRef = useRef(viewingPast);
@@ -286,11 +296,33 @@ function App() {
   const availableTandemExercises = session.started && !session.firstPerson && session.exerciseIndex > 0
     ? effectiveWorkout.slice(session.exerciseIndex + 1).filter((item) => exerciseKey(item) !== "warm_up")
     : [];
+  const activeGroupId = selectedGroup?.id ?? "";
 
   const setLocalSession = useCallback((nextSession: WorkoutSession) => {
     sessionRef.current = nextSession;
     setSession(nextSession);
   }, []);
+
+  const chooseGroup = useCallback((group: WorkoutGroup) => {
+    clearPendingStepperSave();
+    setActiveWorkoutGroupId(group.id);
+    latestLocalRevisionRef.current = 0;
+    latestEventSequenceRef.current = 0;
+    activeRemoteSessionRef.current = null;
+    setActiveRemoteSession(null);
+    setViewingPast(false);
+    setPastSession(null);
+    setTandemExerciseId("");
+    setCompletedWorkouts([]);
+    setWorkoutPlanLoaded(false);
+    setUserBaselineStates(baselineStatesFromWeights(defaultUserProfiles));
+    setUserProfiles(defaultUserProfiles);
+    setUserStrategies(defaultUserStrategies);
+    setBaselineProgressionStrategies(defaultBaselineProgressionStrategies);
+    setLocalSession(initialSession);
+    setSelectedGroup(group);
+    setGroupStatus("ready");
+  }, [setLocalSession]);
 
   function prepareLocalSession(nextSession: WorkoutSession) {
     const nextRevision =
@@ -404,15 +436,50 @@ function App() {
   }, []);
 
   useEffect(() => {
+    let cancelled = false;
+
+    loadWorkoutGroupsForUser(ASSUMED_USER_ID)
+      .then((groups) => {
+        if (cancelled) return;
+
+        const selection = chooseWorkoutGroup(groups, ASSUMED_USER_ID);
+
+        if (selection.status === "selected") {
+          chooseGroup(selection.group);
+        } else if (selection.status === "needs-selection") {
+          setAvailableGroups(selection.groups);
+          setGroupStatus("needs-selection");
+        } else {
+          chooseGroup(defaultWorkoutGroup);
+        }
+      })
+      .catch((error) => {
+        console.error("Failed to load workout groups, using default group:", error);
+
+        if (!cancelled) {
+          chooseGroup(defaultWorkoutGroup);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [chooseGroup]);
+
+  useEffect(() => {
+    if (!selectedGroup) return;
+
     const unsubscribe = listenToWorkoutSession((data) => {
       const incoming = data as WorkoutSession;
       applyIncomingSession(incoming);
     });
 
     return () => unsubscribe();
-  }, [applyIncomingSession]);
+  }, [applyIncomingSession, selectedGroup]);
 
   useEffect(() => {
+    if (!selectedGroup) return;
+
     const unsubscribe = listenToWorkoutEvents((event) => {
       const eventSession = event.payload.session as WorkoutSession | undefined;
 
@@ -426,13 +493,22 @@ function App() {
     });
 
     return () => unsubscribe();
-  }, [applyIncomingSession]);
+  }, [applyIncomingSession, selectedGroup]);
 
   useEffect(() => {
-    loadCompletedWorkoutSummaries().then(setCompletedWorkouts);
-  }, [session.complete]);
+    if (!selectedGroup) return;
+
+    loadCompletedWorkoutSummaries()
+      .then(setCompletedWorkouts)
+      .catch((error) => {
+        console.error("Failed to load completed workouts:", error);
+        setCompletedWorkouts([]);
+      });
+  }, [activeGroupId, selectedGroup, session.complete]);
 
   useEffect(() => {
+    if (!selectedGroup) return;
+
     loadWorkoutPlan(workout)
       .then((loadedWorkout) => {
         setBaseWorkout(loadedWorkout);
@@ -443,9 +519,11 @@ function App() {
         setBaseWorkout(workout);
         setWorkoutPlanLoaded(true);
       });
-  }, []);
+  }, [activeGroupId, selectedGroup]);
 
   useEffect(() => {
+    if (!selectedGroup) return;
+
     const defaultBaselineStates = baselineStatesFromWeights(defaultUserProfiles);
 
     Promise.all([
@@ -470,8 +548,10 @@ function App() {
         Mike: baselineProgressionStrategies.Mike ?? defaultBaselineProgressionStrategies.Mike,
         Victoria: baselineProgressionStrategies.Victoria ?? defaultBaselineProgressionStrategies.Victoria,
       });
+    }).catch((error) => {
+      console.error("Failed to load user settings, using defaults:", error);
     });
-  }, []);
+  }, [activeGroupId, selectedGroup]);
 
   useEffect(() => {
     if (!session.warmupStartedAt || session.exerciseIndex !== 0) {
@@ -656,6 +736,40 @@ function App() {
     }
   }
 
+  if (groupStatus === "loading") {
+    return (
+      <main className="app">
+        <section className="card">
+          <h1>It Takes Two</h1>
+          <p className="subtitle">Loading workout group...</p>
+        </section>
+      </main>
+    );
+  }
+
+  if (groupStatus === "needs-selection") {
+    return (
+      <main className="app">
+        <section className="card">
+          <h1>It Takes Two</h1>
+          <p className="subtitle">Choose a workout group</p>
+
+          <div className="group-list">
+            {availableGroups.map((group) => (
+              <button
+                key={group.id}
+                className="secondary-button"
+                onClick={() => chooseGroup(group)}
+              >
+                {group.name}
+              </button>
+            ))}
+          </div>
+        </section>
+      </main>
+    );
+  }
+
   if (session.complete || viewingPast) {
     const currentSession = viewingPast && pastSession ? pastSession : session;
 
@@ -818,7 +932,7 @@ function App() {
       <main className="app">
         <section className="card">
           <h1>It Takes Two</h1>
-          <p className="subtitle">Mike & Victoria's workout tracker</p>
+          <p className="subtitle">{selectedGroup?.name ?? "Mike & Victoria"} workout tracker</p>
           <p style={{ fontSize: "0.75rem", color: "#999", marginTop: "0.5rem" }}>v{APP_VERSION}</p>
 
           <button
