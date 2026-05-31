@@ -16,9 +16,9 @@ The UI renders one of several modes based on that state:
 
 Firestore provides three kinds of data:
 
-- Startup configuration: workout plan, exercise metadata, user profiles, current baselines, completed workout history.
-- Live synchronization: `workoutGroups/mike-victoria/workoutSessions/demo`.
-- Persisted history: `workoutGroups/mike-victoria/completedWorkouts`.
+- Startup configuration: group metadata, workout plan, exercise metadata, user profiles, current baselines, completed workout history.
+- Live synchronization: `workoutSessions/mike-victoria_demo`.
+- Persisted history: `completedWorkouts` filtered by `groupId`.
 
 The current design is optimistic in some places and blocking in others. Stepper changes update local UI immediately and save shortly after. Major navigation actions update local state immediately, then await Firestore before clearing their pending button state.
 
@@ -74,7 +74,7 @@ Owns Firestore read/write helpers and workout-derived calculations.
 Primary responsibilities:
 
 - Save and listen to the live workout session.
-- Append ordered event records under `workoutGroups/mike-victoria/workoutSessions/demo/events`.
+- Append ordered event records under `workoutSessions/mike-victoria_demo/events`.
 - Delete temporary event records for all non-active workout sessions after completion or cancellation.
 - Load the current workout session.
 - Load and merge workout plan data.
@@ -100,16 +100,18 @@ Writes initial Firestore plan/configuration documents.
 
 Primary responsibilities:
 
-- Seeds `workoutPlans/default`.
-- Seeds `exercises/*`.
-- Merges selected movement weights into `userProfiles/*`.
+- Seeds the default `workoutGroups/mike-victoria` metadata document.
+- Seeds `workoutGroups/mike-victoria/workoutPlans/default`.
+- Seeds `workoutGroups/mike-victoria/exercises/*`.
+- Merges selected movement weights into `workoutGroups/mike-victoria/userProfiles/*`.
+- Seeds `currentBaselines/*` with `groupId`.
 
 ## App Startup Flow
 
 When the app mounts, several effects run:
 
-1. Subscribe to `workoutGroups/mike-victoria/workoutSessions/demo` with `onSnapshot`.
-2. Load completed workout summaries from `workoutGroups/mike-victoria/completedWorkouts`.
+1. Subscribe to `workoutSessions/mike-victoria_demo` with `onSnapshot`.
+2. Load completed workout summaries from `completedWorkouts` where `groupId` is `mike-victoria`.
 3. Load the workout plan from Firestore and merge it with local fallback data.
 4. Load user profiles from Firestore and merge them with local defaults.
 5. Load current baselines from Firestore and merge them with local defaults.
@@ -124,12 +126,12 @@ The home screen may show:
 
 ## Live Session Sync Flow
 
-The app listens to the group-scoped active session.
+The app listens to the selected group's active session in the top-level runtime collection.
 
-At runtime, the path is group-scoped through `src/firebase.ts`, so the default production path is:
+At runtime, the document id is group-specific through `src/firebase.ts`, so the default production path is:
 
 ```text
-workoutGroups/mike-victoria/workoutSessions/demo
+workoutSessions/mike-victoria_demo
 ```
 
 When a snapshot arrives:
@@ -154,7 +156,7 @@ If the incoming session is cancelled:
 - `activeRemoteSession` is cleared.
 - Local session is reset to the initial home state.
 
-After a local workout reaches `completed` or `cancelled`, the app attempts to delete event documents for all non-active sessions in the group. This cleanup is best-effort and does not block the visible workout state; the durable session document remains enough to recover even when the event stream is empty.
+After a local workout reaches `completed` or `cancelled`, the app attempts to delete event documents for all non-active sessions. This cleanup is best-effort and does not block the visible workout state; the durable session document remains enough to recover even when the event stream is empty.
 
 ## Local Session Commit Flow
 
@@ -319,9 +321,9 @@ When the final set of the final exercise is recorded:
 4. Completed results are summarized.
 5. Exercise outcomes are calculated.
 6. Baseline progression is calculated from the planned-vs-actual work totals.
-7. A completed workout summary is written to `workoutGroups/mike-victoria/completedWorkouts/{sessionId}`.
-8. Updated `currentBaselines/*` are written.
-9. The completed session is committed to `workoutGroups/mike-victoria/workoutSessions/demo`.
+7. A completed workout summary is written to `completedWorkouts/{sessionId}` with `groupId`.
+8. Updated `currentBaselines/*` documents are written with `groupId`.
+9. The completed session is committed to `workoutSessions/mike-victoria_demo`.
 
 Workout finalization is transactional and avoids duplicate completed-workout creation for the same session id.
 
@@ -333,7 +335,7 @@ The completed screen derives totals from the current session:
 - Total weight lifted.
 - Per-exercise details.
 
-The chart uses the group-scoped `completedWorkouts`, sorted by `completedAt`, and plots `totalWeightLifted`.
+The chart uses `completedWorkouts` filtered by the active `groupId`, sorted by `completedAt`, and plots `totalWeightLifted`.
 
 The home screen's "View Latest Workout Results" button sorts completed workouts by `completedAt`, selects the latest one, and builds a lightweight past session from its results.
 

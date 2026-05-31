@@ -4,15 +4,16 @@ This document describes the Firestore data model currently used by the app. It i
 
 ## High-Level Shape
 
-The app uses Firestore as a small shared state store for a two-person workout tracker. Runtime data is scoped under the default workout group:
+The app uses Firestore as a small shared state store for a two-person workout tracker. Group setup data lives under the group, while workout runtime/history state lives in top-level collections with an explicit `groupId`:
 
-- `workoutGroups/mike-victoria/workoutSessions/demo`: the current shared workout session.
-- `workoutGroups/mike-victoria/workoutSessions/demo/events/{eventId}`: ordered event records for session-changing actions.
+- `workoutGroups/mike-victoria`: the default workout group metadata document.
 - `workoutGroups/mike-victoria/workoutPlans/default`: the active workout plan and exercise ordering.
 - `workoutGroups/mike-victoria/exercises/{exerciseId}`: exercise metadata that can override or extend local fallback data.
 - `workoutGroups/mike-victoria/userProfiles/{person}`: person-specific preferences and strategies.
-- `workoutGroups/mike-victoria/currentBaselines/{person}`: per-person training baselines and success streaks.
-- `workoutGroups/mike-victoria/completedWorkouts/{sessionId}`: workout history records used for summaries and progression.
+- `workoutSessions/mike-victoria_demo`: the current shared workout session for the default group.
+- `workoutSessions/mike-victoria_demo/events/{eventId}`: ordered event records for session-changing actions.
+- `currentBaselines/mike-victoria_{person}`: per-person training baselines and success streaks.
+- `completedWorkouts/{sessionId}`: workout history records used for summaries and progression.
 
 Generic group shape:
 
@@ -21,26 +22,29 @@ workoutGroups/{groupId}
 workoutGroups/{groupId}/workoutPlans/{planId}
 workoutGroups/{groupId}/exercises/{exerciseId}
 workoutGroups/{groupId}/userProfiles/{memberId}
-workoutGroups/{groupId}/currentBaselines/{memberId}
-workoutGroups/{groupId}/workoutSessions/{sessionId}
-workoutGroups/{groupId}/workoutSessions/{sessionId}/events/{eventId}
-workoutGroups/{groupId}/completedWorkouts/{sessionId}
+currentBaselines/{groupId}_{memberId}
+workoutSessions/{groupId}_{activeSessionId}
+workoutSessions/{groupId}_{activeSessionId}/events/{eventId}
+completedWorkouts/{sessionId}
 ```
 
 The default runtime group id is `mike-victoria`. It can be overridden at build/dev time with `VITE_WORKOUT_GROUP_ID`.
+
+Until authentication is added, the app assumes the current user is one of the default group members (`Mike` or `Victoria`). The group metadata is still stored in Firestore so the future login flow can load a user's groups, skip selection when only one group is available, and show a group picker when the user belongs to multiple groups.
 
 There is also a local fallback workout definition in `src/workoutData.ts`. The database does not currently own all workout defaults. Instead, Firestore documents are merged with local TypeScript data at runtime.
 
 ## Collection: workoutSessions
 
-### Document: `workoutGroups/{groupId}/workoutSessions/demo`
+### Document: `workoutSessions/{groupId}_demo`
 
-This is the single live session document. The app always reads and writes the fixed document id `demo`.
+This is the single live session document for a group. The app currently reads and writes the default document id `mike-victoria_demo`.
 
 Primary fields:
 
 ```ts
 {
+  groupId: string;
   started: boolean;
   complete: boolean;
   status?: "active" | "completed" | "cancelled";
@@ -88,7 +92,7 @@ This document acts as both:
 - The durable current workout checkpoint.
 - The live cross-device sync object.
 
-The current session is saved through transactional event/session writes for major workout actions. The transaction appends an event under `workoutGroups/mike-victoria/workoutSessions/demo/events/{sequence}` and updates `workoutGroups/mike-victoria/workoutSessions/demo` with the latest session state, `updatedAt`, and `eventSequence`.
+The current session is saved through transactional event/session writes for major workout actions. The transaction appends an event under `workoutSessions/mike-victoria_demo/events/{sequence}` and updates `workoutSessions/mike-victoria_demo` with the latest session state, `groupId`, `updatedAt`, and `eventSequence`.
 
 Event documents are temporary sync messages. After a workout is completed or cancelled, the app best-effort deletes event documents for every non-active session in `workoutSessions`, not just the session that just ended. The durable session document and `completedWorkouts` history remain the source of truth, so a failed cleanup can be retried by the next workout completion or cancellation.
 
@@ -127,14 +131,14 @@ For compound exercises, a person's movement sequence is completed before switchi
 
 ### Current Constraints
 
-- There is only one live session id: `demo`.
+- There is only one live session id per group: `{groupId}_demo`.
 - The full reordered workout may be embedded into the session document.
 - Session state, UI cursor state, recorded set results, temporary weight overrides, and sync metadata live together in one document.
 - `localRevision`, `lastWriterId`, and `eventSequence` exist, but the listener still converges by accepting the latest active session broadly instead of doing field-level conflict resolution.
 
 ## Collection: workoutPlans
 
-### Document: `workoutPlans/default`
+### Document: `workoutGroups/{groupId}/workoutPlans/default`
 
 Primary fields:
 
@@ -164,7 +168,7 @@ If `active === false`, the local fallback workout is used.
 
 ## Collection: exercises
 
-### Document: `exercises/{exerciseId}`
+### Document: `workoutGroups/{groupId}/exercises/{exerciseId}`
 
 These documents contain exercise metadata. The seeding script currently writes fields such as:
 
@@ -186,8 +190,8 @@ These documents contain exercise metadata. The seeding script currently writes f
 At runtime, each exercise is built from three layers:
 
 1. Local fallback exercise from `src/workoutData.ts`.
-2. Firestore exercise document from `exercises/{exerciseId}`.
-3. Inline item override from `workoutPlans/default`.
+2. Firestore exercise document from `workoutGroups/{groupId}/exercises/{exerciseId}`.
+3. Inline item override from `workoutGroups/{groupId}/workoutPlans/default`.
 
 Later layers override earlier layers.
 
@@ -205,7 +209,7 @@ This means Firestore exercise documents can be partial only because local fallba
 
 ## Collection: userProfiles
 
-### Documents: `userProfiles/Mike`, `userProfiles/Victoria`
+### Documents: `workoutGroups/{groupId}/userProfiles/Mike`, `workoutGroups/{groupId}/userProfiles/Victoria`
 
 Primary fields:
 
@@ -223,13 +227,15 @@ Profiles store person-level preferences and strategies. Current training weights
 
 ## Collection: currentBaselines
 
-### Documents: `currentBaselines/Mike`, `currentBaselines/Victoria`
+### Documents: `currentBaselines/mike-victoria_Mike`, `currentBaselines/mike-victoria_Victoria`
 
 Primary fields:
 
 ```ts
 {
+  groupId: string;
   userId: string;
+  memberId: string;
   baselines: Record<string, {
     weight: number;
     successStreak: number;
@@ -268,12 +274,13 @@ For straight strategy users, the displayed set weight is the profile baseline.
 
 ## Collection: completedWorkouts
 
-### Documents: `workoutGroups/{groupId}/completedWorkouts/{sessionId}`
+### Documents: `completedWorkouts/{sessionId}`
 
 Primary fields:
 
 ```ts
 {
+  groupId: string;
   completedAt: string;
   finalizedAt?: string;
   sessionId?: string;
@@ -315,14 +322,15 @@ This local data is part of the effective database architecture because Firestore
 
 `scripts/seedWorkoutPlan.mjs` writes:
 
-- `workoutPlans/default`
-- `exercises/*`
-- `userProfiles/Mike`
-- `userProfiles/Victoria`
-- `currentBaselines/Mike`
-- `currentBaselines/Victoria`
+- `workoutGroups/mike-victoria`
+- `workoutGroups/mike-victoria/workoutPlans/default`
+- `workoutGroups/mike-victoria/exercises/*`
+- `workoutGroups/mike-victoria/userProfiles/Mike`
+- `workoutGroups/mike-victoria/userProfiles/Victoria`
+- `currentBaselines/mike-victoria_Mike`
+- `currentBaselines/mike-victoria_Victoria`
 
-The script can also reset runtime collections (`workoutSessions` and `completedWorkouts`) before reseeding static/current-baseline data. It supports both production collections and the older `tmp_` collection prefix.
+The script can also reset top-level runtime collections (`workoutSessions` and `completedWorkouts`) for the selected group before reseeding static/current-baseline data. It supports both production collections and the older `tmp_` collection prefix.
 
 ## Derived Data
 
@@ -344,7 +352,7 @@ Progressed current baselines are derived at workout completion from the just-com
 - Baseline increases round up to the nearest 5 lb.
 - Baseline decreases round down to the nearest 5 lb and never go below 0.
 
-When progression changes a baseline, the app writes updated `currentBaselines/Mike` and `currentBaselines/Victoria`.
+When progression changes a baseline, the app writes updated `currentBaselines/mike-victoria_Mike` and `currentBaselines/mike-victoria_Victoria`.
 
 ## Important Architectural Observations
 

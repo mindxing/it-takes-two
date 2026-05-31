@@ -8,6 +8,7 @@ export type ActiveMovement = NonNullable<Exercise["movements"]>[number];
 
 export type WorkoutSession = {
   sessionId?: string;
+  groupId?: string;
   started: boolean;
   complete: boolean;
   exerciseIndex: number;

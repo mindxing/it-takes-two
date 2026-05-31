@@ -12,7 +12,8 @@ assert.match(output, /"memberIds": \[/);
 assert.match(output, /"Mike"/);
 assert.match(output, /"Victoria"/);
 assert.match(output, /workoutPlans\/\* -> workoutGroups\/mike-victoria\/workoutPlans\/\*/);
-assert.match(output, /workoutSessions\/\*\/events\/\* -> workoutGroups\/mike-victoria\/workoutSessions\/\*\/events\/\*/);
+assert.match(output, /currentBaselines\/\* -> currentBaselines\/\* with groupId mike-victoria/);
+assert.match(output, /workoutSessions\/\*\/events\/\* -> workoutSessions\/\*\/events\/\* with groupId mike-victoria/);
 
 const tmpOutput = execFileSync(
   process.execPath,
@@ -22,5 +23,6 @@ const tmpOutput = execFileSync(
 
 assert.match(tmpOutput, /Dry run: would write tmp_workoutGroups\/test-group/);
 assert.match(tmpOutput, /tmp_workoutPlans\/\* -> tmp_workoutGroups\/test-group\/workoutPlans\/\*/);
+assert.match(tmpOutput, /tmp_workoutSessions\/\* -> tmp_workoutSessions\/\* with groupId test-group/);
 
 console.log("Group migration tests passed.");

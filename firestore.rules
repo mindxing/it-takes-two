@@ -1,0 +1,23 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isConfiguredCollection(collectionName) {
+      return collectionName in [
+        'workoutGroups',
+        'workoutSessions',
+        'currentBaselines',
+        'completedWorkouts',
+        'tmp_workoutGroups',
+        'tmp_workoutSessions',
+        'tmp_currentBaselines',
+        'tmp_completedWorkouts'
+      ];
+    }
+
+    // Temporary public rules until Firebase Auth and group membership checks exist.
+    match /{collectionName}/{document=**} {
+      allow read, write: if isConfiguredCollection(collectionName);
+    }
+  }
+}

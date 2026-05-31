@@ -2,7 +2,7 @@
 
 This document describes the target database model for the workout app. It intentionally differs from the current implementation described in `database-architecture.md`.
 
-Status note: the implemented app now uses the same broad ownership split for `userProfiles` versus `currentBaselines`, and runtime data is scoped under `workoutGroups/mike-victoria`. It still uses the fixed live session document `workoutGroups/mike-victoria/workoutSessions/demo` instead of creating fresh `workoutSessions/{sessionId}` documents per workout.
+Status note: the implemented app now stores group setup under `workoutGroups/mike-victoria`, while runtime/history state uses top-level `workoutSessions`, `completedWorkouts`, and `currentBaselines` documents with explicit `groupId`. It still uses the fixed live session document `workoutSessions/mike-victoria_demo` instead of creating fresh `workoutSessions/{sessionId}` documents per workout.
 
 The central design idea is clear ownership of information. Static data defines reusable facts and preferences. Starting a workout creates a dynamic "work order" that copies the needed static data and resolves the correct targets for that workout.
 
@@ -21,7 +21,9 @@ The central design idea is clear ownership of information. Static data defines r
 
 Workout groups are the ownership boundary for a two-person workout partnership.
 
-Implementation status: the app has a default group model, a migration script that copies the current global one-couple data under `workoutGroups/mike-victoria`, and runtime Firestore access now uses the default group-scoped paths.
+Implementation status: the app has a default group model and seed/migration scripts that write `workoutGroups/mike-victoria`. Group setup data is group-scoped; runtime/history data is top-level with `groupId`.
+
+Future auth behavior: after login, load the groups where the signed-in user is a member. If there is one group, select it automatically. If there are multiple groups, show a group selector before starting or joining a workout. Until auth exists, local development assumes the user is one of the default group members, Mike or Victoria.
 
 Example document: `workoutGroups/{groupId}`
 
@@ -42,16 +44,16 @@ Example document: `workoutGroups/{groupId}`
 }
 ```
 
-Recommended group-scoped collections:
+Implemented/default collection shape:
 
 ```text
 workoutGroups/{groupId}/workoutPlans/{planId}
 workoutGroups/{groupId}/exercises/{exerciseId}
 workoutGroups/{groupId}/userProfiles/{memberId}
-workoutGroups/{groupId}/currentBaselines/{memberId}
-workoutGroups/{groupId}/workoutSessions/{sessionId}
-workoutGroups/{groupId}/workoutSessions/{sessionId}/events/{eventId}
-workoutGroups/{groupId}/completedWorkouts/{sessionId}
+currentBaselines/{groupId}_{memberId}
+workoutSessions/{groupId}_{activeSessionId}
+workoutSessions/{groupId}_{activeSessionId}/events/{eventId}
+completedWorkouts/{sessionId}
 ```
 
 Ownership:

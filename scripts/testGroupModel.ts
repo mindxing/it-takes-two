@@ -4,6 +4,8 @@ import {
   defaultWorkoutGroup,
   defaultWorkoutGroupId,
   defaultWorkoutPlanId,
+  activeSessionDocumentId,
+  currentBaselineDocumentId,
   groupCollectionPath,
   groupDocumentPath,
   groupRootCollection,
@@ -31,21 +33,23 @@ assert.equal(groupRootCollection("tmp_"), "tmp_workoutGroups");
 assert.equal(groupDocumentPath("group-a"), "workoutGroups/group-a");
 assert.equal(groupDocumentPath("group-a", "tmp_"), "tmp_workoutGroups/group-a");
 assert.equal(
-  groupCollectionPath("group-a", "workoutSessions"),
-  "workoutGroups/group-a/workoutSessions"
+  groupCollectionPath("group-a", "workoutPlans"),
+  "workoutGroups/group-a/workoutPlans"
 );
 assert.equal(
-  groupScopedDocumentPath("group-a", "workoutSessions", "demo"),
-  "workoutGroups/group-a/workoutSessions/demo"
+  groupScopedDocumentPath("group-a", "workoutPlans", "default"),
+  "workoutGroups/group-a/workoutPlans/default"
 );
 assert.equal(
   groupSessionEventsPath("group-a"),
-  "workoutGroups/group-a/workoutSessions/demo/events"
+  "workoutSessions/group-a_demo/events"
 );
 assert.equal(
   groupSessionEventsPath("group-a", "session-2", "tmp_"),
-  "tmp_workoutGroups/group-a/workoutSessions/session-2/events"
+  "tmp_workoutSessions/group-a_session-2/events"
 );
+assert.equal(activeSessionDocumentId("group-a"), "group-a_demo");
+assert.equal(currentBaselineDocumentId("group-a", "Mike"), "group-a_Mike");
 
 assert.equal(legacyCollectionPath("workoutSessions"), "workoutSessions");
 assert.equal(legacyCollectionPath("workoutSessions", "tmp_"), "tmp_workoutSessions");

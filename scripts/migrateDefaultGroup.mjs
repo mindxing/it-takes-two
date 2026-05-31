@@ -27,10 +27,13 @@ const defaultGroup = {
   active: true,
 };
 
-const collectionsToCopy = [
+const groupScopedCollectionsToCopy = [
   "workoutPlans",
   "exercises",
   "userProfiles",
+];
+
+const topLevelStateCollectionsToCopy = [
   "currentBaselines",
   "completedWorkouts",
   "workoutSessions",
@@ -59,6 +62,26 @@ function groupPath(groupId, collectionPrefix) {
 
 function groupCollectionPath(groupId, collectionNameValue, collectionPrefix) {
   return `${groupPath(groupId, collectionPrefix)}/${collectionNameValue}`;
+}
+
+function activeSessionDocumentId(groupId) {
+  return `${groupId}_demo`;
+}
+
+function currentBaselineDocumentId(groupId, memberId) {
+  return `${groupId}_${memberId}`;
+}
+
+function targetStateDocumentId(groupId, collectionNameValue, sourceDocumentId) {
+  if (collectionNameValue === "workoutSessions" && sourceDocumentId === "demo") {
+    return activeSessionDocumentId(groupId);
+  }
+
+  if (collectionNameValue === "currentBaselines") {
+    return currentBaselineDocumentId(groupId, sourceDocumentId);
+  }
+
+  return sourceDocumentId;
 }
 
 async function loadEnv() {
@@ -96,7 +119,7 @@ function requireEnv(env, key) {
   return value;
 }
 
-async function copyCollection({ db, groupId, legacyCollection, collectionPrefix }) {
+async function copyGroupScopedCollection({ db, groupId, legacyCollection, collectionPrefix }) {
   const legacyPath = collectionName(legacyCollection, collectionPrefix);
   const targetPath = groupCollectionPath(groupId, legacyCollection, collectionPrefix);
   const snapshot = await getDocs(collection(db, legacyPath));
@@ -104,14 +127,39 @@ async function copyCollection({ db, groupId, legacyCollection, collectionPrefix 
   for (const sourceDoc of snapshot.docs) {
     await setDoc(doc(db, targetPath, sourceDoc.id), sourceDoc.data());
     console.log(`Copied ${legacyPath}/${sourceDoc.id} -> ${targetPath}/${sourceDoc.id}`);
+  }
+}
+
+async function copyTopLevelStateCollection({ db, groupId, legacyCollection, collectionPrefix }) {
+  const legacyPath = collectionName(legacyCollection, collectionPrefix);
+  const targetPath = collectionName(legacyCollection, collectionPrefix);
+  const snapshot = await getDocs(collection(db, legacyPath));
+
+  for (const sourceDoc of snapshot.docs) {
+    const targetDocumentId = targetStateDocumentId(groupId, legacyCollection, sourceDoc.id);
+    const preparedData = {
+      ...sourceDoc.data(),
+      groupId,
+    };
+
+    if (legacyCollection === "currentBaselines") {
+      preparedData.memberId = sourceDoc.id;
+      preparedData.userId = preparedData.userId ?? sourceDoc.id;
+    }
+
+    await setDoc(doc(db, targetPath, targetDocumentId), preparedData);
+    console.log(`Copied ${legacyPath}/${sourceDoc.id} -> ${targetPath}/${targetDocumentId}`);
 
     if (legacyCollection === "workoutSessions") {
       const sourceEventsPath = `${legacyPath}/${sourceDoc.id}/events`;
-      const targetEventsPath = `${targetPath}/${sourceDoc.id}/events`;
+      const targetEventsPath = `${targetPath}/${targetDocumentId}/events`;
       const eventsSnapshot = await getDocs(collection(db, sourceEventsPath));
 
       for (const eventDoc of eventsSnapshot.docs) {
-        await setDoc(doc(db, targetEventsPath, eventDoc.id), eventDoc.data());
+        await setDoc(doc(db, targetEventsPath, eventDoc.id), {
+          ...eventDoc.data(),
+          groupId,
+        });
         console.log(`Copied ${sourceEventsPath}/${eventDoc.id} -> ${targetEventsPath}/${eventDoc.id}`);
       }
     }
@@ -132,14 +180,20 @@ async function main() {
     console.log(`Dry run: would write ${root}/${groupId}`);
     console.log(JSON.stringify(group, null, 2));
 
-    for (const collectionToCopy of collectionsToCopy) {
+    for (const collectionToCopy of groupScopedCollectionsToCopy) {
       console.log(
         `Dry run: would copy ${collectionName(collectionToCopy, collectionPrefix)}/* -> ${groupCollectionPath(groupId, collectionToCopy, collectionPrefix)}/*`
+      );
+    }
+
+    for (const collectionToCopy of topLevelStateCollectionsToCopy) {
+      console.log(
+        `Dry run: would copy ${collectionName(collectionToCopy, collectionPrefix)}/* -> ${collectionName(collectionToCopy, collectionPrefix)}/* with groupId ${groupId}`
       );
 
       if (collectionToCopy === "workoutSessions") {
         console.log(
-          `Dry run: would copy ${collectionName(collectionToCopy, collectionPrefix)}/*/events/* -> ${groupCollectionPath(groupId, collectionToCopy, collectionPrefix)}/*/events/*`
+          `Dry run: would copy ${collectionName(collectionToCopy, collectionPrefix)}/*/events/* -> ${collectionName(collectionToCopy, collectionPrefix)}/*/events/* with groupId ${groupId}`
         );
       }
     }
@@ -162,8 +216,17 @@ async function main() {
   await setDoc(doc(db, root, groupId), group);
   console.log(`Wrote ${root}/${groupId}`);
 
-  for (const collectionToCopy of collectionsToCopy) {
-    await copyCollection({
+  for (const collectionToCopy of groupScopedCollectionsToCopy) {
+    await copyGroupScopedCollection({
+      db,
+      groupId,
+      legacyCollection: collectionToCopy,
+      collectionPrefix,
+    });
+  }
+
+  for (const collectionToCopy of topLevelStateCollectionsToCopy) {
+    await copyTopLevelStateCollection({
       db,
       groupId,
       legacyCollection: collectionToCopy,

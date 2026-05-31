@@ -1,5 +1,11 @@
-import { collectionName, db } from "./firebase";
-import { addDoc, collection, deleteDoc, getDocs, orderBy, query, doc, onSnapshot, setDoc, getDoc, runTransaction } from "firebase/firestore";
+import {
+  activeCurrentBaselineDocumentId,
+  activeWorkoutGroupId,
+  activeWorkoutSessionDocumentId,
+  collectionName,
+  db,
+} from "./firebase";
+import { addDoc, collection, deleteDoc, getDocs, orderBy, query, doc, onSnapshot, setDoc, getDoc, runTransaction, where } from "firebase/firestore";
 import type { Person, Exercise as WorkoutExercise } from "./workoutData";
 import { shouldCleanupWorkoutSessionEvents } from "./workoutSync";
 import {
@@ -58,6 +64,7 @@ export function saveWorkoutSession(session: unknown) {
   const now = new Date().toISOString();
   const prepared = removeUndefinedValues({
     ...(session as Record<string, unknown>),
+    groupId: activeWorkoutGroupId(),
     updatedAt: now,
   }) as Record<string, unknown>;
 
@@ -65,7 +72,7 @@ export function saveWorkoutSession(session: unknown) {
     prepared.createdAt = now;
   }
 
-  return setDoc(doc(db, collectionName("workoutSessions"), demoSessionId), prepared, { merge: true });
+  return setDoc(doc(db, collectionName("workoutSessions"), activeWorkoutSessionDocumentId()), prepared, { merge: true });
 }
 
 export function appendWorkoutEvent(
@@ -78,8 +85,9 @@ export function appendWorkoutEvent(
     session?: unknown;
   }
 ) {
-  const sessionRef = doc(db, collectionName("workoutSessions"), demoSessionId);
+  const sessionRef = doc(db, collectionName("workoutSessions"), activeWorkoutSessionDocumentId());
   const now = new Date().toISOString();
+  const groupId = activeWorkoutGroupId();
 
   return runTransaction(db, async (transaction) => {
     const sessionSnapshot = await transaction.get(sessionRef);
@@ -95,6 +103,7 @@ export function appendWorkoutEvent(
     const preparedSession = event.session
       ? removeUndefinedValues({
         ...(event.session as Record<string, unknown>),
+        groupId,
         eventSequence: sequence,
         updatedAt: now,
       }) as Record<string, unknown>
@@ -104,6 +113,7 @@ export function appendWorkoutEvent(
       sequence,
       type,
       sessionId: event.sessionId,
+      groupId,
       actorId: event.actorId,
       clientId: event.clientId,
       createdAt: now,
@@ -117,7 +127,7 @@ export function appendWorkoutEvent(
 
       transaction.set(sessionRef, preparedSession, { merge: true });
     } else {
-      transaction.set(sessionRef, { eventSequence: sequence, updatedAt: now }, { merge: true });
+      transaction.set(sessionRef, { groupId, eventSequence: sequence, updatedAt: now }, { merge: true });
     }
 
     return { sequence, eventId };
@@ -126,7 +136,7 @@ export function appendWorkoutEvent(
 
 export function listenToWorkoutEvents(onEvent: (event: WorkoutEvent) => void) {
   const eventsQuery = query(
-    collection(db, collectionName("workoutSessions"), demoSessionId, "events"),
+    collection(db, collectionName("workoutSessions"), activeWorkoutSessionDocumentId(), "events"),
     orderBy("sequence", "asc")
   );
 
@@ -153,7 +163,7 @@ export function listenToWorkoutSession(
   onSessionChange: (session: unknown) => void
 ) {
   return onSnapshot(
-    doc(db, collectionName("workoutSessions"), demoSessionId),
+    doc(db, collectionName("workoutSessions"), activeWorkoutSessionDocumentId()),
     (snapshot) => {
       if (snapshot.exists()) {
         onSessionChange(snapshot.data());
@@ -166,7 +176,7 @@ export function listenToWorkoutSession(
 }
 
 export async function loadCurrentWorkoutSession() {
-  const snapshot = await getDoc(doc(db, collectionName("workoutSessions"), demoSessionId));
+  const snapshot = await getDoc(doc(db, collectionName("workoutSessions"), activeWorkoutSessionDocumentId()));
   return snapshot.exists() ? snapshot.data() : null;
 }
 
@@ -195,7 +205,10 @@ export function saveCompletedWorkoutSummary(summary: {
   exerciseOutcomes?: Record<string, Record<string, "exact" | "up" | "down" | "neutral">>;
   results: SetResult[];
 }) {
-  return addDoc(collection(db, collectionName("completedWorkouts")), summary);
+  return addDoc(collection(db, collectionName("completedWorkouts")), {
+    ...summary,
+    groupId: activeWorkoutGroupId(),
+  });
 }
 
 export async function loadWorkoutPlan(fallbackWorkout: WorkoutExercise[]): Promise<WorkoutExercise[]> {
@@ -263,6 +276,7 @@ export type ExerciseOutcomes = Record<string, Record<string, ExerciseOutcome>>;
 
 export type CompletedWorkoutSummary = {
   sessionId?: string;
+  groupId?: string;
   completedAt: string;
   totalSets: number;
   totalWeightLifted: number;
@@ -273,7 +287,7 @@ export type CompletedWorkoutSummary = {
 export async function loadCompletedWorkoutSummaries() {
   const q = query(
     collection(db, collectionName("completedWorkouts")),
-    orderBy("completedAt", "asc")
+    where("groupId", "==", activeWorkoutGroupId())
   );
 
   const snapshot = await getDocs(q);
@@ -281,7 +295,7 @@ export async function loadCompletedWorkoutSummaries() {
   return snapshot.docs.map((doc) => ({
     id: doc.id,
     ...(doc.data() as CompletedWorkoutSummary),
-  }));
+  })).sort((a, b) => new Date(a.completedAt).getTime() - new Date(b.completedAt).getTime());
 }
 
 export type UserProgressionStrategy = "pyramid" | "straight";
@@ -349,7 +363,7 @@ export async function loadCurrentBaselineStates(defaults: Record<string, UserWei
   const baselineStates: Record<string, UserBaselines> = {};
 
   for (const person of Object.keys(defaults)) {
-    const baselineDoc = await getDoc(doc(db, collectionName("currentBaselines"), person));
+    const baselineDoc = await getDoc(doc(db, collectionName("currentBaselines"), activeCurrentBaselineDocumentId(person)));
 
     if (baselineDoc.exists()) {
       const baselineData = baselineDoc.data() as {
@@ -409,8 +423,10 @@ function prepareStoredBaselines(baselines: UserBaselines) {
 }
 
 export function saveCurrentBaselineStates(person: string, baselines: UserBaselines) {
-  return setDoc(doc(db, collectionName("currentBaselines"), person), {
+  return setDoc(doc(db, collectionName("currentBaselines"), activeCurrentBaselineDocumentId(person)), {
+    groupId: activeWorkoutGroupId(),
     userId: person,
+    memberId: person,
     baselines: prepareStoredBaselines(baselines),
   });
 }
@@ -426,12 +442,14 @@ export async function finalizeCompletedWorkout({
   baselineStates: Record<string, UserBaselines>;
   session: unknown;
 }) {
+  const groupId = activeWorkoutGroupId();
   const completedRef = doc(db, collectionName("completedWorkouts"), sessionId);
-  const sessionRef = doc(db, collectionName("workoutSessions"), demoSessionId);
+  const sessionRef = doc(db, collectionName("workoutSessions"), activeWorkoutSessionDocumentId());
   const now = new Date().toISOString();
   const preparedSession = removeUndefinedValues({
     ...(session as Record<string, unknown>),
     sessionId,
+    groupId,
     status: "completed",
     complete: true,
     updatedAt: now,
@@ -450,12 +468,15 @@ export async function finalizeCompletedWorkout({
     transaction.set(completedRef, {
       ...summary,
       sessionId,
+      groupId,
       finalizedAt: now,
     });
 
     for (const [person, baselines] of Object.entries(baselineStates)) {
-      transaction.set(doc(db, collectionName("currentBaselines"), person), {
+      transaction.set(doc(db, collectionName("currentBaselines"), activeCurrentBaselineDocumentId(person)), {
+        groupId,
         userId: person,
+        memberId: person,
         baselines: prepareStoredBaselines(baselines),
         updatedAt: now,
       });
@@ -466,6 +487,7 @@ export async function finalizeCompletedWorkout({
       type: "completeWorkout",
       sequence,
       sessionId,
+      groupId,
       createdAt: now,
       payload: {
         session: preparedSession,

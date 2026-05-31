@@ -90,6 +90,12 @@ Deploy the normal production app:
 npm run deploy
 ```
 
+Deploy Firestore rules after data path changes:
+
+```bash
+npm run deploy:rules
+```
+
 Deploy the `tmp_` sync-work version to a Firebase Hosting preview channel:
 
 ```bash
@@ -122,19 +128,18 @@ Reset runtime workout data and seed the `tmp_` collections:
 npm run seed:workout-plan:tmp:reset
 ```
 
-The reset scripts delete `workoutSessions` and `completedWorkouts` for the
-target collection prefix, then rewrite workout plans, exercises, user profiles,
-and current baselines.
-
-The app now reads group-scoped data. If you reseed the legacy/global
-collections, rerun the default-group migration afterward so
-`workoutGroups/mike-victoria` receives the same updates.
+The seed scripts write group setup data under `workoutGroups/mike-victoria`,
+and write current baselines into top-level `currentBaselines` docs with
+`groupId`. The reset scripts delete top-level `workoutSessions` and
+`completedWorkouts` for that group, then rewrite the group metadata, workout
+plan, exercises, user profiles, and current baselines.
 
 ## Prepare Default Workout Group Data
 
-Phase A of the groups work adds a non-destructive migration script. It copies
-the current one-couple production collections into a default group shape under
-`workoutGroups/mike-victoria`.
+Phase A of the groups work added a non-destructive migration script. It copies
+older global one-couple setup collections into `workoutGroups/mike-victoria`
+and tags top-level state collections with `groupId`. You usually do not need
+this after using the current seed scripts.
 
 Preview the production migration:
 
@@ -167,15 +172,19 @@ workoutGroups/{groupId}
 workoutGroups/{groupId}/workoutPlans/*
 workoutGroups/{groupId}/exercises/*
 workoutGroups/{groupId}/userProfiles/*
-workoutGroups/{groupId}/currentBaselines/*
-workoutGroups/{groupId}/workoutSessions/* and nested events
-workoutGroups/{groupId}/completedWorkouts/*
+currentBaselines/* with groupId
+workoutSessions/* with groupId and nested events
+completedWorkouts/* with groupId
 ```
 
-After the groups runtime switch, the app reads and writes the default group:
+After the groups runtime switch, the app reads setup data from the default group
+and runtime/history data from top-level collections:
 
 ```text
 workoutGroups/mike-victoria/...
+workoutSessions/mike-victoria_demo
+currentBaselines/mike-victoria_*
+completedWorkouts/* where groupId == "mike-victoria"
 ```
 
 You can point a build at a different group id later with:

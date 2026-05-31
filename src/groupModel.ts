@@ -45,7 +45,9 @@ export const defaultWorkoutGroup: WorkoutGroup = {
 export type GroupScopedCollection =
   | "workoutPlans"
   | "exercises"
-  | "userProfiles"
+  | "userProfiles";
+
+export type TopLevelStateCollection =
   | "currentBaselines"
   | "workoutSessions"
   | "completedWorkouts";
@@ -84,9 +86,32 @@ export function groupSessionEventsPath(
   sessionId = defaultActiveSessionId,
   collectionPrefix = ""
 ) {
-  return `${groupScopedDocumentPath(groupId, "workoutSessions", sessionId, collectionPrefix)}/events`;
+  return `${topLevelDocumentPath("workoutSessions", activeSessionDocumentId(groupId, sessionId), collectionPrefix)}/events`;
 }
 
-export function legacyCollectionPath(collectionName: GroupScopedCollection, collectionPrefix = "") {
+export function topLevelCollectionPath(collectionName: TopLevelStateCollection, collectionPrefix = "") {
+  return prefixedCollectionName(collectionName, collectionPrefix);
+}
+
+export function topLevelDocumentPath(
+  collectionName: TopLevelStateCollection,
+  documentId: string,
+  collectionPrefix = ""
+) {
+  return `${topLevelCollectionPath(collectionName, collectionPrefix)}/${documentId}`;
+}
+
+export function activeSessionDocumentId(groupId: string, sessionId = defaultActiveSessionId) {
+  return `${groupId}_${sessionId}`;
+}
+
+export function currentBaselineDocumentId(groupId: string, memberId: string) {
+  return `${groupId}_${memberId}`;
+}
+
+export function legacyCollectionPath(
+  collectionName: GroupScopedCollection | TopLevelStateCollection,
+  collectionPrefix = ""
+) {
   return prefixedCollectionName(collectionName, collectionPrefix);
 }

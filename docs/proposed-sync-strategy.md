@@ -2,7 +2,7 @@
 
 This document describes the target syncing strategy for the workout app. It assumes the proposed database model in `proposed-database-design.md`, where starting a workout creates a fresh `workoutSessions/{sessionId}` work order.
 
-Status note: the app has implemented part of this strategy, but still uses a fixed live document inside the default group: `workoutGroups/mike-victoria/workoutSessions/demo`. Current major actions append ordered events under that session's `events/{sequence}` subcollection and update the durable `demo` session in the same transaction.
+Status note: the app has implemented part of this strategy, but still uses a fixed live document for the default group: `workoutSessions/mike-victoria_demo`. Current major actions append ordered events under that session's `events/{sequence}` subcollection and update the durable session document in the same transaction.
 
 The core idea is:
 

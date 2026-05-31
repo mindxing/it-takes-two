@@ -3,6 +3,33 @@ import { resolve } from "node:path";
 import { deleteApp, initializeApp } from "firebase/app";
 import { collection, deleteDoc, doc, getDocs, getFirestore, setDoc } from "firebase/firestore";
 
+const defaultGroupId = "mike-victoria";
+const defaultWorkoutPlanId = "default";
+const defaultActiveSessionId = "demo";
+
+const defaultGroup = {
+  id: defaultGroupId,
+  name: "Mike & Victoria",
+  memberIds: ["Mike", "Victoria"],
+  members: {
+    Mike: {
+      id: "Mike",
+      displayName: "Mike",
+      role: "member",
+      active: true,
+    },
+    Victoria: {
+      id: "Victoria",
+      displayName: "Victoria",
+      role: "member",
+      active: true,
+    },
+  },
+  defaultWorkoutPlanId,
+  activeSessionId: defaultActiveSessionId,
+  active: true,
+};
+
 const exerciseIds = [
   "warm_up",
   "leg_press",
@@ -201,6 +228,11 @@ const workoutPlan = {
   exerciseIds,
 };
 
+function argValue(name, fallback = "") {
+  const arg = process.argv.find((item) => item.startsWith(`--${name}=`));
+  return arg ? arg.slice(name.length + 3) : fallback;
+}
+
 async function loadEnv() {
   const envPath = resolve(".env");
   const envText = await readFile(envPath, "utf8");
@@ -237,26 +269,69 @@ function requireEnv(env, key) {
 }
 
 function readCollectionPrefix() {
-  const prefixArg = process.argv.find((item) => item.startsWith("--collection-prefix="));
-
-  if (prefixArg) {
-    return prefixArg.slice("--collection-prefix=".length);
-  }
-
-  return process.env.VITE_FIRESTORE_COLLECTION_PREFIX ?? "";
+  return argValue("collection-prefix", process.env.VITE_FIRESTORE_COLLECTION_PREFIX ?? "");
 }
 
 const collectionPrefix = readCollectionPrefix();
+const groupId = argValue("group-id", defaultGroupId);
+const group = {
+  ...defaultGroup,
+  id: groupId,
+};
 
 function collectionName(name) {
   return `${collectionPrefix}${name}`;
 }
 
+function groupRootCollection() {
+  return collectionName("workoutGroups");
+}
+
+function groupPath() {
+  return `${groupRootCollection()}/${groupId}`;
+}
+
+function groupCollectionPath(name) {
+  return `${groupPath()}/${name}`;
+}
+
+function topLevelCollectionPath(name) {
+  return collectionName(name);
+}
+
+function activeSessionDocumentId() {
+  return `${groupId}_${defaultActiveSessionId}`;
+}
+
+function currentBaselineDocumentId(memberId) {
+  return `${groupId}_${memberId}`;
+}
+
 async function main() {
   const dryRun = process.argv.includes("--dry-run");
   const resetRuntime = process.argv.includes("--reset-runtime");
-  const env = await loadEnv();
 
+  if (dryRun) {
+    if (resetRuntime) {
+      console.log(`Dry run: would delete ${topLevelCollectionPath("workoutSessions")}/* for group ${groupId} and nested events`);
+      console.log(`Dry run: would delete ${topLevelCollectionPath("completedWorkouts")}/* for group ${groupId}`);
+    }
+    console.log(`Dry run: would write ${groupPath()}`);
+    console.log(JSON.stringify(group, null, 2));
+    console.log(`Dry run: would write ${groupCollectionPath("workoutPlans")}/default`);
+    console.log(JSON.stringify(workoutPlan, null, 2));
+    console.log(`Dry run: would write ${groupCollectionPath("exercises")}/*`);
+    console.log(JSON.stringify(exercises, null, 2));
+    console.log(`Dry run: would delete retired ${groupCollectionPath("exercises")} docs`);
+    console.log(JSON.stringify(retiredExerciseIds, null, 2));
+    console.log(`Dry run: would write ${groupCollectionPath("userProfiles")}/*`);
+    console.log(JSON.stringify(userProfiles, null, 2));
+    console.log(`Dry run: would write ${topLevelCollectionPath("currentBaselines")}/* for group ${groupId}`);
+    console.log(JSON.stringify(currentBaselines, null, 2));
+    return;
+  }
+
+  const env = await loadEnv();
   const firebaseConfig = {
     apiKey: requireEnv(env, "VITE_FIREBASE_API_KEY"),
     authDomain: requireEnv(env, "VITE_FIREBASE_AUTH_DOMAIN"),
@@ -265,72 +340,66 @@ async function main() {
     messagingSenderId: requireEnv(env, "VITE_FIREBASE_MESSAGING_SENDER_ID"),
     appId: requireEnv(env, "VITE_FIREBASE_APP_ID"),
   };
-
-  if (dryRun) {
-    if (resetRuntime) {
-      console.log(`Dry run: would delete ${collectionName("workoutSessions")}/* and nested events`);
-      console.log(`Dry run: would delete ${collectionName("completedWorkouts")}/*`);
-    }
-    console.log(`Dry run: would write ${collectionName("workoutPlans")}/default`);
-    console.log(JSON.stringify(workoutPlan, null, 2));
-    console.log(`Dry run: would write ${collectionName("exercises")}/*`);
-    console.log(JSON.stringify(exercises, null, 2));
-    console.log(`Dry run: would delete retired ${collectionName("exercises")} docs`);
-    console.log(JSON.stringify(retiredExerciseIds, null, 2));
-    console.log(`Dry run: would write ${collectionName("userProfiles")}/*`);
-    console.log(JSON.stringify(userProfiles, null, 2));
-    console.log(`Dry run: would write ${collectionName("currentBaselines")}/*`);
-    console.log(JSON.stringify(currentBaselines, null, 2));
-    return;
-  }
-
   const app = initializeApp(firebaseConfig);
   const db = getFirestore(app);
 
   if (resetRuntime) {
-    const workoutSessionsSnapshot = await getDocs(collection(db, collectionName("workoutSessions")));
+    const workoutSessionsSnapshot = await getDocs(collection(db, topLevelCollectionPath("workoutSessions")));
 
     for (const sessionDoc of workoutSessionsSnapshot.docs) {
-      const eventsSnapshot = await getDocs(collection(db, collectionName("workoutSessions"), sessionDoc.id, "events"));
+      if (sessionDoc.data().groupId !== groupId && sessionDoc.id !== activeSessionDocumentId()) continue;
+
+      const eventsSnapshot = await getDocs(collection(db, topLevelCollectionPath("workoutSessions"), sessionDoc.id, "events"));
 
       for (const eventDoc of eventsSnapshot.docs) {
         await deleteDoc(eventDoc.ref);
-        console.log(`Deleted ${collectionName("workoutSessions")}/${sessionDoc.id}/events/${eventDoc.id}`);
+        console.log(`Deleted ${topLevelCollectionPath("workoutSessions")}/${sessionDoc.id}/events/${eventDoc.id}`);
       }
 
       await deleteDoc(sessionDoc.ref);
-      console.log(`Deleted ${collectionName("workoutSessions")}/${sessionDoc.id}`);
+      console.log(`Deleted ${topLevelCollectionPath("workoutSessions")}/${sessionDoc.id}`);
     }
 
-    const completedWorkoutsSnapshot = await getDocs(collection(db, collectionName("completedWorkouts")));
+    const completedWorkoutsSnapshot = await getDocs(collection(db, topLevelCollectionPath("completedWorkouts")));
 
     for (const completedWorkoutDoc of completedWorkoutsSnapshot.docs) {
+      if (completedWorkoutDoc.data().groupId !== groupId) continue;
+
       await deleteDoc(completedWorkoutDoc.ref);
-      console.log(`Deleted ${collectionName("completedWorkouts")}/${completedWorkoutDoc.id}`);
+      console.log(`Deleted ${topLevelCollectionPath("completedWorkouts")}/${completedWorkoutDoc.id}`);
     }
   }
 
-  await setDoc(doc(db, collectionName("workoutPlans"), "default"), workoutPlan);
-  console.log(`Wrote ${collectionName("workoutPlans")}/default`);
+  await setDoc(doc(db, groupRootCollection(), groupId), group);
+  console.log(`Wrote ${groupPath()}`);
+
+  await setDoc(doc(db, groupCollectionPath("workoutPlans"), "default"), workoutPlan);
+  console.log(`Wrote ${groupCollectionPath("workoutPlans")}/default`);
 
   for (const [exerciseId, exercise] of Object.entries(exercises)) {
-    await setDoc(doc(db, collectionName("exercises"), exerciseId), exercise);
-    console.log(`Wrote ${collectionName("exercises")}/${exerciseId}`);
+    await setDoc(doc(db, groupCollectionPath("exercises"), exerciseId), exercise);
+    console.log(`Wrote ${groupCollectionPath("exercises")}/${exerciseId}`);
   }
 
   for (const exerciseId of retiredExerciseIds) {
-    await deleteDoc(doc(db, collectionName("exercises"), exerciseId));
-    console.log(`Deleted retired ${collectionName("exercises")}/${exerciseId}`);
+    await deleteDoc(doc(db, groupCollectionPath("exercises"), exerciseId));
+    console.log(`Deleted retired ${groupCollectionPath("exercises")}/${exerciseId}`);
   }
 
   for (const [person, profileUpdate] of Object.entries(userProfiles)) {
-    await setDoc(doc(db, collectionName("userProfiles"), person), profileUpdate);
-    console.log(`Wrote ${collectionName("userProfiles")}/${person}`);
+    await setDoc(doc(db, groupCollectionPath("userProfiles"), person), profileUpdate);
+    console.log(`Wrote ${groupCollectionPath("userProfiles")}/${person}`);
   }
 
   for (const [person, baselineUpdate] of Object.entries(currentBaselines)) {
-    await setDoc(doc(db, collectionName("currentBaselines"), person), baselineUpdate);
-    console.log(`Wrote ${collectionName("currentBaselines")}/${person}`);
+    const preparedBaseline = {
+      ...baselineUpdate,
+      groupId,
+      memberId: person,
+    };
+
+    await setDoc(doc(db, topLevelCollectionPath("currentBaselines"), currentBaselineDocumentId(person)), preparedBaseline);
+    console.log(`Wrote ${topLevelCollectionPath("currentBaselines")}/${currentBaselineDocumentId(person)}`);
   }
 
   await deleteApp(app);
