@@ -60,13 +60,13 @@ type CompletedWorkout = {
 
 const defaultUserProfiles: Record<Person, Record<string, number>> = {
   Mike: {
-    leg_press: 125,
+    leg_press: 200,
     chest_press_machine: 65,
     seated_row_machine: 55,
-    lat_pulldown: 55,
-    bicep_curl_machine: 55,
-    tricep_pushdown: 55,
-    abs: 0,
+    lat_pulldown: 105,
+    bicep_curl_machine: 35,
+    tricep_pushdown: 85,
+    abs: 50,
     dumbbell_romanian_deadlift: 35,
   },
   Victoria: {
@@ -263,6 +263,7 @@ function App() {
   const [warmupSeconds, setWarmupSeconds] = useState(0);
   const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
   const [workoutPlanLoaded, setWorkoutPlanLoaded] = useState(false);
+  const [userSettingsLoaded, setUserSettingsLoaded] = useState(false);
   const [tandemExerciseId, setTandemExerciseId] = useState("");
   const [selectedGroup, setSelectedGroup] = useState<WorkoutGroup | null>(null);
   const [availableGroups, setAvailableGroups] = useState<WorkoutGroup[]>([]);
@@ -297,6 +298,7 @@ function App() {
     ? effectiveWorkout.slice(session.exerciseIndex + 1).filter((item) => exerciseKey(item) !== "warm_up")
     : [];
   const activeGroupId = selectedGroup?.id ?? "";
+  const readyToStart = workoutPlanLoaded && userSettingsLoaded;
 
   const setLocalSession = useCallback((nextSession: WorkoutSession) => {
     sessionRef.current = nextSession;
@@ -315,6 +317,7 @@ function App() {
     setTandemExerciseId("");
     setCompletedWorkouts([]);
     setWorkoutPlanLoaded(false);
+    setUserSettingsLoaded(false);
     setUserBaselineStates(baselineStatesFromWeights(defaultUserProfiles));
     setUserProfiles(defaultUserProfiles);
     setUserStrategies(defaultUserStrategies);
@@ -550,6 +553,8 @@ function App() {
       });
     }).catch((error) => {
       console.error("Failed to load user settings, using defaults:", error);
+    }).finally(() => {
+      setUserSettingsLoaded(true);
     });
   }, [activeGroupId, selectedGroup]);
 
@@ -937,9 +942,9 @@ function App() {
 
           <button
             className="primary-button"
-            disabled={pendingAction === "start" || !workoutPlanLoaded}
+            disabled={pendingAction === "start" || !readyToStart}
             onClick={async () => {
-              if (pendingAction === "start" || !workoutPlanLoaded) return;
+              if (pendingAction === "start" || !readyToStart) return;
 
               setPendingAction("start");
 
@@ -958,7 +963,7 @@ function App() {
               }
             }}
           >
-            {!workoutPlanLoaded ? "Loading Workout..." : activeRemoteSession ? "Join Workout" : "Start Workout"}
+            {!readyToStart ? "Loading Workout..." : activeRemoteSession ? "Join Workout" : "Start Workout"}
           </button>
 
           {completedWorkouts.length > 0 && (

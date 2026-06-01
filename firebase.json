@@ -3,6 +3,7 @@
     "rules": "firestore.rules"
   },
   "hosting": {
+    "site": "it-takes-two-5794c",
     "public": "dist",
     "ignore": [
       "firebase.json",
