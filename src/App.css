@@ -4,7 +4,13 @@
   align-items: center;
   justify-content: center;
   padding: 24px;
-  background: #f4f4f5;
+  background-color: #f4f4f5;
+  background-image:
+    linear-gradient(rgba(244, 244, 245, 0.62), rgba(244, 244, 245, 0.74)),
+    url("/workout-background-mobile.png");
+  background-position: center;
+  background-size: cover;
+  background-repeat: no-repeat;
   font-family: system-ui, sans-serif;
 }
 
@@ -321,7 +327,13 @@ button:disabled {
   }
 
   .app {
-    background: #f4f4f5;
+    background-color: #f4f4f5;
+    background-image:
+      linear-gradient(rgba(244, 244, 245, 0.62), rgba(244, 244, 245, 0.74)),
+      url("/workout-background-mobile.png");
+    background-position: center;
+    background-size: cover;
+    background-repeat: no-repeat;
   }
 
   .card {
