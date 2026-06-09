@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="title">
+  <title id="title">Swap tandem target</title>
+  <path d="M18 22h24l-6-6 4-4 13 13-13 13-4-4 6-6H18z" fill="#2563eb"/>
+  <path d="M46 42H22l6 6-4 4-13-13 13-13 4 4-6 6h24z" fill="#111827"/>
+</svg>

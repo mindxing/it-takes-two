@@ -511,33 +511,217 @@ function tandemTurnFor(session: WorkoutSession, turnIndex: number) {
   };
 }
 
-function nextTandemPosition(session: WorkoutSession, workout: Exercise[]) {
-  if (!session.tandem) return null;
+type TandemPosition = {
+  exerciseIndex: number;
+  personIndex: number;
+  turnIndex: number;
+  setNumber: number;
+  movementIndex: number;
+};
 
-  let nextTurnIndex = session.tandem.turnIndex + 1;
-  let nextSet = session.currentSet;
+function resultMatchesTandemPosition(
+  result: SetResult,
+  exercise: Exercise,
+  person: Person,
+  setNumber: number,
+  movement: ActiveMovement | null
+) {
+  return (
+    result.person === person &&
+    result.setNumber === setNumber &&
+    result.exerciseId === exerciseKey(exercise) &&
+    (!movement || result.movementId === movement.id)
+  );
+}
 
-  while (nextSet <= maxTandemSets(session, workout)) {
-    if (nextTurnIndex > 3) {
-      nextTurnIndex = 0;
-      nextSet += 1;
+function firstOpenMovementIndexForPosition({
+  session,
+  exercise,
+  person,
+  setNumber,
+}: {
+  session: WorkoutSession;
+  exercise: Exercise;
+  person: Person;
+  setNumber: number;
+}) {
+  const movements = exercise.movements && exercise.movements.length > 0
+    ? exercise.movements
+    : [null];
+
+  for (let movementIndex = 0; movementIndex < movements.length; movementIndex += 1) {
+    const movement = movements[movementIndex];
+    const hasResult = session.results.some((result) =>
+      resultMatchesTandemPosition(result, exercise, person, setNumber, movement)
+    );
+
+    if (!hasResult) {
+      return movementIndex;
     }
-
-    const turn = tandemTurnFor(session, nextTurnIndex);
-    const exercise = turn ? workout[turn.exerciseIndex] : null;
-
-    if (turn && exercise && nextSet <= exercise.sets) {
-      return {
-        ...turn,
-        turnIndex: nextTurnIndex,
-        setNumber: nextSet,
-      };
-    }
-
-    nextTurnIndex += 1;
   }
 
   return null;
+}
+
+function tandemPositionFor({
+  session,
+  workout,
+  turnIndex,
+  setNumber,
+}: {
+  session: WorkoutSession;
+  workout: Exercise[];
+  turnIndex: number;
+  setNumber: number;
+}): TandemPosition | null {
+  const turn = tandemTurnFor(session, turnIndex);
+  const exercise = turn ? workout[turn.exerciseIndex] : null;
+
+  if (!turn || !exercise || setNumber > exercise.sets) {
+    return null;
+  }
+
+  const person = session.exerciseOrder[turn.personIndex];
+  const movementIndex = firstOpenMovementIndexForPosition({
+    session,
+    exercise,
+    person,
+    setNumber,
+  });
+
+  if (movementIndex === null) {
+    return null;
+  }
+
+  return {
+    ...turn,
+    turnIndex,
+    setNumber,
+    movementIndex,
+  };
+}
+
+function nextTandemPosition(session: WorkoutSession, workout: Exercise[]) {
+  if (!session.tandem) return null;
+
+  for (let setNumber = 1; setNumber <= maxTandemSets(session, workout); setNumber += 1) {
+    for (let turnIndex = 0; turnIndex <= 3; turnIndex += 1) {
+      const position = tandemPositionFor({
+        session,
+        workout,
+        turnIndex,
+        setNumber,
+      });
+
+      if (position) {
+        return position;
+      }
+    }
+  }
+
+  return null;
+}
+
+function tandemCompanionTurnIndex(turnIndex: number) {
+  return turnIndex % 2 === 0 ? turnIndex + 1 : turnIndex - 1;
+}
+
+export function tandemCompanionPrompt({
+  session,
+  workout,
+  userProfiles,
+  userStrategies,
+}: {
+  session: WorkoutSession;
+  workout: Exercise[];
+  userProfiles: Record<Person, Record<string, number>>;
+  userStrategies: Record<Person, WeightStrategy>;
+}) {
+  if (!session.tandem) return null;
+
+  const companionPosition = tandemPositionFor({
+    session,
+    workout,
+    turnIndex: tandemCompanionTurnIndex(session.tandem.turnIndex),
+    setNumber: session.currentSet,
+  });
+
+  if (!companionPosition) return null;
+
+  const exercise = workout[companionPosition.exerciseIndex];
+  const movement = activeMovement(exercise, companionPosition.movementIndex);
+  const person = session.exerciseOrder[companionPosition.personIndex];
+  const next = prepareNextSetValues({
+    session,
+    exercise,
+    movement,
+    person,
+    setNumber: companionPosition.setNumber,
+    userProfiles,
+    userStrategies,
+  });
+
+  return {
+    person,
+    exerciseId: exerciseKey(exercise),
+    exerciseName: exercise.name,
+    movementId: movement?.id ?? null,
+    movementName: movement?.name ?? null,
+    setNumber: companionPosition.setNumber,
+    reps: next.reps,
+    weight: next.weight,
+  };
+}
+
+export function switchToTandemCompanion({
+  session,
+  workout,
+  userProfiles,
+  userStrategies,
+}: {
+  session: WorkoutSession;
+  workout: Exercise[];
+  userProfiles: Record<Person, Record<string, number>>;
+  userStrategies: Record<Person, WeightStrategy>;
+}): WorkoutSession {
+  if (!session.tandem) return session;
+
+  const companionPosition = tandemPositionFor({
+    session,
+    workout,
+    turnIndex: tandemCompanionTurnIndex(session.tandem.turnIndex),
+    setNumber: session.currentSet,
+  });
+
+  if (!companionPosition) return session;
+
+  const exercise = workout[companionPosition.exerciseIndex];
+  const movement = activeMovement(exercise, companionPosition.movementIndex);
+  const person = session.exerciseOrder[companionPosition.personIndex];
+  const next = prepareNextSetValues({
+    session,
+    exercise,
+    movement,
+    person,
+    setNumber: companionPosition.setNumber,
+    userProfiles,
+    userStrategies,
+  });
+
+  return {
+    ...session,
+    exerciseIndex: companionPosition.exerciseIndex,
+    currentPersonIndex: companionPosition.personIndex,
+    currentMovementIndex: companionPosition.movementIndex,
+    currentSet: companionPosition.setNumber,
+    currentReps: next.reps,
+    currentWeight: next.weight,
+    adjustedRepBaselines: next.adjustedRepBaselines,
+    tandem: {
+      ...session.tandem,
+      turnIndex: companionPosition.turnIndex,
+    },
+  };
 }
 
 function maxTandemSets(session: WorkoutSession, workout: Exercise[]) {
@@ -584,7 +768,7 @@ function advanceTandemTurn({
       ...session,
       exerciseIndex: nextPosition.exerciseIndex,
       currentPersonIndex: nextPosition.personIndex,
-      currentMovementIndex: 0,
+      currentMovementIndex: nextPosition.movementIndex,
       currentSet: nextPosition.setNumber,
       currentReps: next.reps,
       currentWeight: next.weight,

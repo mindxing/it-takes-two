@@ -9,6 +9,8 @@ import {
   recordSetAndAdvance,
   startWarmup,
   startWorkoutSession,
+  switchToTandemCompanion,
+  tandemCompanionPrompt,
   type WorkoutSession,
 } from "../src/workoutEngine.ts";
 import type { Exercise, Person } from "../src/workoutData.ts";
@@ -342,6 +344,47 @@ function effectiveWorkout(session: WorkoutSession, fallback: Exercise[]) {
     "Mike:pulldown:S2",
   ]);
   assert.equal(session.complete, true);
+}
+
+{
+  const workout = [press, pulldown];
+  let session = startWorkoutSession("session-tandem-swap", workout);
+
+  session = chooseFirstPerson({
+    session,
+    workout,
+    userProfiles: profiles,
+    userStrategies: strategies,
+    firstPerson: "Mike",
+    tandemExerciseId: "pulldown",
+  });
+
+  const currentWorkout = effectiveWorkout(session, workout);
+  const companion = tandemCompanionPrompt({
+    session,
+    workout: currentWorkout,
+    userProfiles: profiles,
+    userStrategies: strategies,
+  });
+
+  assert.equal(companion?.person, "Victoria");
+  assert.equal(companion?.exerciseId, "pulldown");
+  assert.equal(companion?.setNumber, 1);
+
+  session = switchToTandemCompanion({
+    session,
+    workout: currentWorkout,
+    userProfiles: profiles,
+    userStrategies: strategies,
+  });
+
+  assert.equal(currentWorkoutPrompt(session, currentWorkout).person, "Victoria");
+  assert.equal(currentWorkoutPrompt(session, currentWorkout).exerciseId, "pulldown");
+
+  session = complete(session, currentWorkout);
+
+  assert.equal(currentWorkoutPrompt(session, currentWorkout).person, "Mike");
+  assert.equal(currentWorkoutPrompt(session, currentWorkout).exerciseId, "press");
 }
 
 {

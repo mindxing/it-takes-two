@@ -20,6 +20,8 @@ import {
   recordSetAndAdvance,
   startWarmup,
   startWorkoutSession,
+  switchToTandemCompanion,
+  tandemCompanionPrompt,
   type SetStatus,
   type WeightStrategy,
   type WorkoutSession,
@@ -346,6 +348,14 @@ function App() {
   const currentWeightStep = currentPerson && currentWeightKey
     ? userBaselineStates[currentPerson]?.[currentWeightKey]?.weightStep ?? 5
     : 5;
+  const tandemCompanion = session.tandem
+    ? tandemCompanionPrompt({
+      session,
+      workout: effectiveWorkout,
+      userProfiles,
+      userStrategies,
+    })
+    : null;
   const availableTandemExercises = session.started && !session.firstPerson && session.exerciseIndex > 0
     ? effectiveWorkout.slice(session.exerciseIndex + 1).filter((item) => exerciseKey(item) !== "warm_up")
     : [];
@@ -549,6 +559,22 @@ function App() {
     saveCurrentBaselineStates(currentPerson, nextBaselineStates[currentPerson]).catch((error) => {
       console.error("Failed to save weight step:", error);
     });
+  }
+
+  async function swapTandemTarget() {
+    if (!sessionRef.current.tandem || pendingAction) return;
+
+    const workoutForSession = sessionRef.current.reorderedWorkout || baseWorkout;
+    const nextSession = switchToTandemCompanion({
+      session: sessionRef.current,
+      workout: workoutForSession,
+      userProfiles,
+      userStrategies,
+    });
+
+    if (nextSession !== sessionRef.current) {
+      await commitSession(nextSession, undefined, "updateSession");
+    }
   }
 
   useEffect(() => {
@@ -1271,6 +1297,27 @@ function App() {
     <main className="app">
       <section className="card">
         <WorkoutProgress exerciseIndex={session.exerciseIndex} workout={effectiveWorkout} />
+        {tandemCompanion && (
+          <div className="tandem-companion-strip">
+            <div className="tandem-companion-copy">
+              <span>
+                <strong>Partner:</strong> {tandemCompanion.person} | {tandemCompanion.exerciseName}
+                {tandemCompanion.movementName ? `: ${tandemCompanion.movementName}` : ""}
+              </span>
+              <span>
+                Set {tandemCompanion.setNumber} | {tandemCompanion.weight} lb x {tandemCompanion.reps}
+              </span>
+            </div>
+            <button
+              className="tandem-swap-button"
+              type="button"
+              aria-label="Swap to partner target"
+              onClick={swapTandemTarget}
+            >
+              <img src="/swap-target-icon.svg" alt="" aria-hidden="true" />
+            </button>
+          </div>
+        )}
         <div className="exercise-title-row">
           <h1>{exercise.name}</h1>
           <button
@@ -1282,14 +1329,9 @@ function App() {
             <img src="/weight-step-icon.svg" alt="" aria-hidden="true" />
           </button>
         </div>
-        <p className="subtitle">
+        <p className={session.tandem ? "subtitle primary-target-line" : "subtitle"}>
           {currentPerson} — Set {session.currentSet} of {exercise.sets}
         </p>
-        {session.tandem && (
-          <p className="subtitle tandem-label">
-            Tandem exercise
-          </p>
-        )}
         {movement && (
           <p className="subtitle">
             Movement {(session.currentMovementIndex ?? 0) + 1} of {exercise.movements?.length}: {movement.name}
