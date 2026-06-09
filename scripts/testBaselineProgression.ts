@@ -271,6 +271,20 @@ function calculate({
 }
 
 {
+  const result = calculateProgressedBaselineStates({
+    currentProfiles: { Mike: { leg_press: 100 } },
+    currentBaselineStates: { Mike: { leg_press: { weight: 100, successStreak: 1, weightStep: 15 } } },
+    workoutPlan,
+    completedWorkout: exactWorkout(100),
+    baselineProgressionStrategies: { Mike: "fast" },
+    userStrategies: { Mike: "pyramid" },
+  });
+
+  assert.equal(result.updatedBaselineStates.Mike.leg_press.weight, 105);
+  assert.equal(result.updatedBaselineStates.Mike.leg_press.weightStep, 15);
+}
+
+{
   const result = calculate({
     workout: { results: [] },
     successStreak: 2,

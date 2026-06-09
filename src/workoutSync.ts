@@ -26,6 +26,18 @@ export function isJoinableRemoteSession(remoteSession: WorkoutSession | null, no
   );
 }
 
+export function shouldIgnoreStaleActiveSessionForCompletedLocal(
+  incoming: WorkoutSession,
+  locallyCompletedSessionIds: ReadonlySet<string>
+) {
+  return (
+    !!incoming.sessionId &&
+    locallyCompletedSessionIds.has(incoming.sessionId) &&
+    incoming.status === "active" &&
+    !incoming.complete
+  );
+}
+
 export function applyIncomingSessionState({
   state,
   incoming,
@@ -45,6 +57,18 @@ export function applyIncomingSessionState({
     state.latestEventSequence,
     incoming.eventSequence ?? 0
   );
+  const sameSession = !!state.session.sessionId && incoming.sessionId === state.session.sessionId;
+  const incomingRevision = incoming.localRevision ?? 0;
+  const currentRevision = state.session.localRevision ?? 0;
+
+  if (sameSession && incomingRevision < currentRevision) {
+    return {
+      session: state.session,
+      activeRemoteSession: state.activeRemoteSession,
+      latestLocalRevision,
+      latestEventSequence,
+    };
+  }
 
   if (incoming.status === "completed" || incoming.complete) {
     return {
@@ -76,6 +100,20 @@ export function shouldApplyWorkoutEvent(currentSession: WorkoutSession, eventSes
   if (!eventSession) return false;
   if (currentSession.sessionId && eventSession.sessionId !== currentSession.sessionId) return false;
   return true;
+}
+
+export function shouldAcceptClientEventSequence({
+  clientId,
+  clientSequence,
+  lastClientSequences,
+}: {
+  clientId?: string;
+  clientSequence?: number;
+  lastClientSequences: Record<string, unknown>;
+}) {
+  if (!clientId || !clientSequence) return true;
+
+  return clientSequence > Number(lastClientSequences[clientId] ?? 0);
 }
 
 export function shouldCleanupWorkoutSessionEvents(

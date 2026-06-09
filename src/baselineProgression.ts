@@ -5,6 +5,7 @@ export type UserWeights = Record<string, number>;
 export type UserBaseline = {
   weight: number;
   successStreak: number;
+  weightStep?: number;
 };
 
 export type UserBaselines = Record<string, UserBaseline>;
@@ -175,12 +176,14 @@ export function calculateProgressedBaselineStates({
 
             if (ratio < 0.95) {
               newBaseline = {
+                ...currentBaseline,
                 weight: roundBaselineDecrease(currentWeight),
                 successStreak: 0,
               };
               reason = `actual work was ${Math.round(ratio * 100)}% of plan`;
             } else if (ratio > 1.05) {
               newBaseline = {
+                ...currentBaseline,
                 weight: roundBaselineIncrease(currentWeight),
                 successStreak: 0,
               };
@@ -191,12 +194,14 @@ export function calculateProgressedBaselineStates({
 
               if (nextSuccessStreak >= threshold) {
                 newBaseline = {
+                  ...currentBaseline,
                   weight: roundBaselineIncrease(currentWeight),
                   successStreak: 0,
                 };
                 reason = `${strategy} baseline progression after ${nextSuccessStreak} successful workouts`;
               } else {
                 newBaseline = {
+                  ...currentBaseline,
                   weight: currentWeight,
                   successStreak: nextSuccessStreak,
                 };

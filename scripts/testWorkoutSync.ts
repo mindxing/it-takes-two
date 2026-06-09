@@ -5,8 +5,10 @@ import {
   cancelWorkoutState,
   isJoinableRemoteSession,
   joinRemoteSessionState,
+  shouldAcceptClientEventSequence,
   shouldApplyWorkoutEvent,
   shouldCleanupWorkoutSessionEvents,
+  shouldIgnoreStaleActiveSessionForCompletedLocal,
   type SyncState,
 } from "../src/workoutSync.ts";
 import type { Exercise } from "../src/workoutData.ts";
@@ -70,6 +72,21 @@ function syncState(overrides: Partial<SyncState> = {}): SyncState {
   assert.equal(result.activeRemoteSession, incoming);
   assert.equal(result.latestLocalRevision, 5);
   assert.equal(result.latestEventSequence, 9);
+}
+
+{
+  const local = activeSession({ sessionId: "session-1", currentWeight: 205, localRevision: 6, eventSequence: 11 });
+  const staleEcho = activeSession({ sessionId: "session-1", currentWeight: 195, localRevision: 5, eventSequence: 10 });
+  const result = applyIncomingSessionState({
+    state: syncState({ session: local, activeRemoteSession: local, latestLocalRevision: 6, latestEventSequence: 11 }),
+    incoming: staleEcho,
+    viewingPast: false,
+    nowMs,
+  });
+
+  assert.equal(result.session.currentWeight, 205);
+  assert.equal(result.latestLocalRevision, 6);
+  assert.equal(result.latestEventSequence, 11);
 }
 
 {
@@ -170,6 +187,33 @@ function syncState(overrides: Partial<SyncState> = {}): SyncState {
 }
 
 {
+  assert.equal(
+    shouldAcceptClientEventSequence({
+      clientId: "client-a",
+      clientSequence: 4,
+      lastClientSequences: { "client-a": 3 },
+    }),
+    true
+  );
+  assert.equal(
+    shouldAcceptClientEventSequence({
+      clientId: "client-a",
+      clientSequence: 3,
+      lastClientSequences: { "client-a": 3 },
+    }),
+    false
+  );
+  assert.equal(
+    shouldAcceptClientEventSequence({
+      clientId: "client-b",
+      clientSequence: 1,
+      lastClientSequences: { "client-a": 10 },
+    }),
+    true
+  );
+}
+
+{
   const current = activeSession({ sessionId: "session-1" });
 
   assert.equal(shouldApplyWorkoutEvent(current, activeSession({ sessionId: "session-1" })), true);
@@ -184,6 +228,20 @@ function syncState(overrides: Partial<SyncState> = {}): SyncState {
   assert.equal(shouldCleanupWorkoutSessionEvents(activeSession({ status: "cancelled" })), true);
   assert.equal(shouldCleanupWorkoutSessionEvents({ status: "active", complete: true }), true);
   assert.equal(shouldCleanupWorkoutSessionEvents({ complete: false }), true);
+}
+
+{
+  const completedIds = new Set(["session-1"]);
+
+  assert.equal(shouldIgnoreStaleActiveSessionForCompletedLocal(activeSession(), completedIds), true);
+  assert.equal(shouldIgnoreStaleActiveSessionForCompletedLocal(activeSession({ sessionId: "session-2" }), completedIds), false);
+  assert.equal(
+    shouldIgnoreStaleActiveSessionForCompletedLocal(
+      activeSession({ status: "completed", complete: true }),
+      completedIds
+    ),
+    false
+  );
 }
 
 {

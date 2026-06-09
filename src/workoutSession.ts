@@ -7,7 +7,7 @@ import {
 } from "./firebase";
 import { addDoc, collection, deleteDoc, getDocs, orderBy, query, doc, onSnapshot, setDoc, getDoc, runTransaction, where } from "firebase/firestore";
 import type { Person, Exercise as WorkoutExercise } from "./workoutData";
-import { shouldCleanupWorkoutSessionEvents } from "./workoutSync";
+import { shouldAcceptClientEventSequence, shouldCleanupWorkoutSessionEvents } from "./workoutSync";
 import {
   calculateProgressedBaselineStates,
   type BaselineProgressionStrategy,
@@ -36,6 +36,7 @@ export type WorkoutEventType =
 export type WorkoutEvent = {
   id: string;
   sequence: number;
+  clientSequence?: number;
   type: WorkoutEventType;
   sessionId?: string;
   actorId?: string;
@@ -81,6 +82,7 @@ export function appendWorkoutEvent(
     sessionId?: string;
     actorId?: string;
     clientId?: string;
+    clientSequence?: number;
     payload?: Record<string, unknown>;
     session?: unknown;
   }
@@ -94,6 +96,27 @@ export function appendWorkoutEvent(
     const currentSequence = sessionSnapshot.exists()
       ? Number(sessionSnapshot.data().eventSequence ?? 0)
       : 0;
+    const currentRevision = sessionSnapshot.exists()
+      ? Number(sessionSnapshot.data().localRevision ?? 0)
+      : 0;
+    const currentClientSequences = sessionSnapshot.exists()
+      ? (sessionSnapshot.data().lastClientSequences ?? {}) as Record<string, unknown>
+      : {};
+    const incomingRevision = event.session
+      ? Number((event.session as { localRevision?: unknown }).localRevision ?? 0)
+      : 0;
+    if (event.session && incomingRevision < currentRevision) {
+      return { sequence: currentSequence, eventId: "", skipped: true };
+    }
+
+    if (!shouldAcceptClientEventSequence({
+      clientId: event.clientId,
+      clientSequence: event.clientSequence,
+      lastClientSequences: currentClientSequences,
+    })) {
+      return { sequence: currentSequence, eventId: "", skipped: true };
+    }
+
     const sequence = currentSequence + 1;
     const eventId = String(sequence).padStart(8, "0");
     const eventPayload = removeUndefinedValues({
@@ -105,6 +128,12 @@ export function appendWorkoutEvent(
         ...(event.session as Record<string, unknown>),
         groupId,
         eventSequence: sequence,
+        lastClientSequences: event.clientId && event.clientSequence
+          ? {
+            ...currentClientSequences,
+            [event.clientId]: event.clientSequence,
+          }
+          : currentClientSequences,
         updatedAt: now,
       }) as Record<string, unknown>
       : null;
@@ -116,6 +145,7 @@ export function appendWorkoutEvent(
       groupId,
       actorId: event.actorId,
       clientId: event.clientId,
+      clientSequence: event.clientSequence,
       createdAt: now,
       payload: eventPayload,
     }) as Record<string, unknown>);
@@ -127,7 +157,17 @@ export function appendWorkoutEvent(
 
       transaction.set(sessionRef, preparedSession, { merge: true });
     } else {
-      transaction.set(sessionRef, { groupId, eventSequence: sequence, updatedAt: now }, { merge: true });
+      transaction.set(sessionRef, removeUndefinedValues({
+        groupId,
+        eventSequence: sequence,
+        lastClientSequences: event.clientId && event.clientSequence
+          ? {
+            ...currentClientSequences,
+            [event.clientId]: event.clientSequence,
+          }
+          : currentClientSequences,
+        updatedAt: now,
+      }) as Record<string, unknown>, { merge: true });
     }
 
     return { sequence, eventId };
@@ -303,7 +343,7 @@ export type UserProfileSettings = {
   progressionStrategies: Record<string, UserProgressionStrategy>;
   baselineProgressionStrategies: Record<string, BaselineProgressionStrategy>;
 };
-type StoredBaselineValue = number | { weight?: unknown; successStreak?: unknown };
+type StoredBaselineValue = number | { weight?: unknown; successStreak?: unknown; weightStep?: unknown };
 
 function isUserProgressionStrategy(value: unknown): value is UserProgressionStrategy {
   return value === "pyramid" || value === "straight";
@@ -339,6 +379,7 @@ function parseStoredBaselines(baselines: Record<string, StoredBaselineValue> | u
       parsedBaselines[exerciseId] = {
         weight: baseline.weight,
         successStreak: typeof baseline.successStreak === "number" ? baseline.successStreak : 0,
+        ...(typeof baseline.weightStep === "number" && baseline.weightStep > 0 ? { weightStep: baseline.weightStep } : {}),
       };
     }
   }
@@ -417,6 +458,7 @@ function prepareStoredBaselines(baselines: UserBaselines) {
       {
         weight: baseline.weight,
         successStreak: baseline.successStreak,
+        ...(typeof baseline.weightStep === "number" && baseline.weightStep > 0 ? { weightStep: baseline.weightStep } : {}),
       },
     ])
   );

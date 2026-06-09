@@ -6,8 +6,9 @@ import { loadWorkoutGroupsForUser } from "./groupData";
 import { defaultWorkoutGroup, type WorkoutGroup } from "./groupModel";
 import { chooseWorkoutGroup, defaultAssumedUserId, isAssumedUserId, type AssumedUserId } from "./groupSelection";
 import { appendWorkoutEvent, cleanupEventsForNonActiveWorkoutSessions, listenToWorkoutEvents, listenToWorkoutSession, loadCurrentWorkoutSession } from "./workoutSession";
-import { finalizeCompletedWorkout, loadCompletedWorkoutSummaries, loadCurrentBaselineStates, loadUserProfileSettings, loadWorkoutPlan, calculateExerciseOutcomes, calculateProgressedUserProfilesFromHistory, type BaselineProgressionStrategy, type SetResult, type ExerciseOutcomes, type UserBaselines, type WorkoutEventType } from "./workoutSession";
+import { finalizeCompletedWorkout, loadCompletedWorkoutSummaries, loadCurrentBaselineStates, loadUserProfileSettings, loadWorkoutPlan, calculateExerciseOutcomes, calculateProgressedUserProfilesFromHistory, saveCurrentBaselineStates, type BaselineProgressionStrategy, type SetResult, type ExerciseOutcomes, type UserBaselines, type WorkoutEventType } from "./workoutSession";
 import {
+  activeWeightKey,
   activeMovement,
   adjustCurrentReps,
   adjustCurrentWeight,
@@ -28,6 +29,7 @@ import {
   cancelWorkoutState,
   joinRemoteSessionState,
   shouldApplyWorkoutEvent,
+  shouldIgnoreStaleActiveSessionForCompletedLocal,
 } from "./workoutSync";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 
@@ -48,6 +50,7 @@ const CLIENT_ID =
 const ASSUMED_USER_ID: AssumedUserId = isAssumedUserId(import.meta.env.VITE_ASSUMED_USER_ID)
   ? import.meta.env.VITE_ASSUMED_USER_ID
   : defaultAssumedUserId;
+const SYNC_LATENCY_DELAY_MS = configuredSyncLatencyDelayMs();
 
 type CompletedWorkout = {
   id: string;
@@ -57,6 +60,42 @@ type CompletedWorkout = {
   exerciseOutcomes?: ExerciseOutcomes;
   results: SetResult[];
 };
+
+type OutboundSessionEvent = {
+  eventType: WorkoutEventType;
+  session: WorkoutSession;
+  clientSequence: number;
+};
+
+function configuredSyncLatencyDelayMs() {
+  const params = new URLSearchParams(globalThis.location.search);
+  const queryValue = params.get("syncDelayMs");
+
+  if (queryValue !== null) {
+    const delayMs = Math.max(0, Number(queryValue) || 0);
+
+    if (delayMs > 0) {
+      globalThis.localStorage.setItem("syncDelayMs", String(delayMs));
+    } else {
+      globalThis.localStorage.removeItem("syncDelayMs");
+    }
+
+    return delayMs;
+  }
+
+  return Math.max(0, Number(globalThis.localStorage.getItem("syncDelayMs")) || 0);
+}
+
+function wait(ms: number) {
+  return new Promise((resolve) => {
+    window.setTimeout(resolve, ms);
+  });
+}
+
+async function simulateSyncLatency() {
+  if (SYNC_LATENCY_DELAY_MS <= 0) return;
+  await wait(SYNC_LATENCY_DELAY_MS);
+}
 
 const defaultUserProfiles: Record<Person, Record<string, number>> = {
   Mike: {
@@ -111,6 +150,7 @@ const defaultBaselineProgressionStrategies: Record<Person, BaselineProgressionSt
   Mike: "medium",
   Victoria: "straight",
 };
+const weightStepOptions = [1, 2.5, 5, 10, 15, 20];
 type BaselineChangeSymbol = "up" | "same" | "down";
 type BaselineChangeDetail = {
   symbol: BaselineChangeSymbol;
@@ -206,6 +246,10 @@ function resultMatchesExercise(result: SetResult, exercise: Exercise) {
   return result.exerciseId === exerciseKey(exercise) || (!result.exerciseId && result.exerciseName === exercise.name);
 }
 
+function formatWeightStep(step: number) {
+  return Number.isInteger(step) ? String(step) : String(step).replace(/\.0$/, "");
+}
+
 function WorkoutProgress({ exerciseIndex, workout }: WorkoutProgressProps) {
   const totalExercises = workout.length;
   const currentNumber = exerciseIndex + 1;
@@ -250,6 +294,7 @@ function App() {
   const [activeRemoteSession, setActiveRemoteSession] = useState<WorkoutSession | null>(null);
   const [showDetails, setShowDetails] = useState(false);
   const [showBaselineChanges, setShowBaselineChanges] = useState(false);
+  const [showWeightStepPicker, setShowWeightStepPicker] = useState(false);
   const [baselineChangeRows, setBaselineChangeRows] = useState<BaselineChangeRow[]>([]);
   const [completedWorkouts, setCompletedWorkouts] = useState<CompletedWorkout[]>([]);
   const [userProfiles, setUserProfiles] = useState<Record<Person, Record<string, number>>>(defaultUserProfiles);
@@ -273,9 +318,12 @@ function App() {
   const viewingPastRef = useRef(viewingPast);
   const latestLocalRevisionRef = useRef(0);
   const latestEventSequenceRef = useRef(0);
-  const pendingStepperSaveRef = useRef<number | null>(null);
-  const pendingStepperSessionRef = useRef<WorkoutSession | null>(null);
+  const clientEventSequenceRef = useRef(0);
+  const outboundEventsRef = useRef<OutboundSessionEvent[]>([]);
+  const outboundFlushTimerRef = useRef<number | null>(null);
+  const outboundFlushInFlightRef = useRef(false);
   const clientIdRef = useRef(CLIENT_ID);
+  const locallyCompletedSessionIdsRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     sessionRef.current = session;
@@ -294,6 +342,10 @@ function App() {
   const exercise = effectiveWorkout[session.exerciseIndex];
   const movement = exercise ? activeMovement(exercise, session.currentMovementIndex ?? 0) : null;
   const currentPerson = session.firstPerson ? session.exerciseOrder[session.currentPersonIndex] : null;
+  const currentWeightKey = exercise ? activeWeightKey(exercise, movement) : "";
+  const currentWeightStep = currentPerson && currentWeightKey
+    ? userBaselineStates[currentPerson]?.[currentWeightKey]?.weightStep ?? 5
+    : 5;
   const availableTandemExercises = session.started && !session.firstPerson && session.exerciseIndex > 0
     ? effectiveWorkout.slice(session.exerciseIndex + 1).filter((item) => exerciseKey(item) !== "warm_up")
     : [];
@@ -306,10 +358,13 @@ function App() {
   }, []);
 
   const chooseGroup = useCallback((group: WorkoutGroup) => {
-    clearPendingStepperSave();
+    clearPendingOutboundFlush();
+    outboundEventsRef.current = [];
     setActiveWorkoutGroupId(group.id);
     latestLocalRevisionRef.current = 0;
     latestEventSequenceRef.current = 0;
+    clientEventSequenceRef.current = 0;
+    locallyCompletedSessionIdsRef.current.clear();
     activeRemoteSessionRef.current = null;
     setActiveRemoteSession(null);
     setViewingPast(false);
@@ -340,16 +395,18 @@ function App() {
     };
   }
 
-  function clearPendingStepperSave() {
-    if (pendingStepperSaveRef.current !== null) {
-      window.clearTimeout(pendingStepperSaveRef.current);
-      pendingStepperSaveRef.current = null;
+  function clearPendingOutboundFlush() {
+    if (outboundFlushTimerRef.current !== null) {
+      window.clearTimeout(outboundFlushTimerRef.current);
+      outboundFlushTimerRef.current = null;
     }
-
-    pendingStepperSessionRef.current = null;
   }
 
   const applyIncomingSession = useCallback((incoming: WorkoutSession) => {
+    if (shouldIgnoreStaleActiveSessionForCompletedLocal(incoming, locallyCompletedSessionIdsRef.current)) {
+      return;
+    }
+
     const next = applyIncomingSessionState({
       state: {
         session: sessionRef.current,
@@ -372,15 +429,76 @@ function App() {
     }
   }, [setLocalSession]);
 
+  function nextClientSequence() {
+    clientEventSequenceRef.current += 1;
+    return clientEventSequenceRef.current;
+  }
+
+  async function flushOutboundEvents() {
+    clearPendingOutboundFlush();
+
+    if (outboundFlushInFlightRef.current) return;
+    outboundFlushInFlightRef.current = true;
+
+    try {
+      await simulateSyncLatency();
+
+      while (outboundEventsRef.current.length > 0) {
+        const nextEvent = outboundEventsRef.current[0];
+        const actorId = nextEvent.session.firstPerson
+          ? nextEvent.session.exerciseOrder[nextEvent.session.currentPersonIndex]
+          : undefined;
+
+        const savedEvent = await appendWorkoutEvent(nextEvent.eventType, {
+          sessionId: nextEvent.session.sessionId,
+          actorId,
+          clientId: clientIdRef.current,
+          clientSequence: nextEvent.clientSequence,
+          session: nextEvent.session,
+        });
+
+        latestEventSequenceRef.current = Math.max(latestEventSequenceRef.current, savedEvent.sequence);
+        outboundEventsRef.current.shift();
+      }
+    } catch (error) {
+      console.error("Failed to flush workout events:", error);
+      scheduleOutboundFlush();
+    } finally {
+      outboundFlushInFlightRef.current = false;
+    }
+  }
+
+  function scheduleOutboundFlush(delayMs = 2000) {
+    if (outboundFlushTimerRef.current !== null) {
+      window.clearTimeout(outboundFlushTimerRef.current);
+    }
+
+    outboundFlushTimerRef.current = window.setTimeout(() => {
+      flushOutboundEvents();
+    }, delayMs);
+  }
+
+  function enqueuePreparedSession(nextSession: WorkoutSession, eventType: WorkoutEventType = "updateSession", delayMs = 2000) {
+    outboundEventsRef.current.push({
+      eventType,
+      session: nextSession,
+      clientSequence: nextClientSequence(),
+    });
+    scheduleOutboundFlush(delayMs);
+  }
+
   async function savePreparedSession(nextSession: WorkoutSession, eventType: WorkoutEventType = "updateSession") {
     const actorId = nextSession.firstPerson
       ? nextSession.exerciseOrder[nextSession.currentPersonIndex]
       : undefined;
 
+    await simulateSyncLatency();
+
     const event = await appendWorkoutEvent(eventType, {
       sessionId: nextSession.sessionId,
       actorId,
       clientId: clientIdRef.current,
+      clientSequence: nextClientSequence(),
       session: nextSession,
     });
 
@@ -388,54 +506,53 @@ function App() {
   }
 
   async function commitSession(nextSession: WorkoutSession, action?: PendingAction, eventType: WorkoutEventType = "updateSession") {
-    clearPendingStepperSave();
-
     const prepared = prepareLocalSession(nextSession);
 
     if (action) {
       setPendingAction(action);
     }
 
-    try {
-      await savePreparedSession(prepared, eventType);
-      setLocalSession(prepared);
-    } finally {
-      if (action) {
-        setPendingAction((current) => current === action ? null : current);
-      }
+    setLocalSession(prepared);
+    enqueuePreparedSession(prepared, eventType);
+
+    if (action) {
+      setPendingAction((current) => current === action ? null : current);
     }
 
     return prepared;
   }
 
-  function queueStepperSave(nextSession: WorkoutSession) {
-    pendingStepperSessionRef.current = nextSession;
-
-    if (pendingStepperSaveRef.current !== null) {
-      window.clearTimeout(pendingStepperSaveRef.current);
-    }
-
-    pendingStepperSaveRef.current = window.setTimeout(() => {
-      const sessionToSave = pendingStepperSessionRef.current;
-      pendingStepperSaveRef.current = null;
-      pendingStepperSessionRef.current = null;
-
-      if (!sessionToSave) return;
-
-      savePreparedSession(sessionToSave, "adjustSet").catch((error) => {
-        console.error("Failed to save stepper update:", error);
-      });
-    }, 450);
-  }
-
   function updateStepperSession(update: (current: WorkoutSession) => WorkoutSession) {
     const prepared = prepareLocalSession(update(sessionRef.current));
     setLocalSession(prepared);
-    queueStepperSave(prepared);
+    enqueuePreparedSession(prepared, "adjustSet");
+  }
+
+  function chooseCurrentWeightStep(nextStep: number) {
+    if (!currentPerson || !currentWeightKey) return;
+
+    const nextBaselineStates = {
+      ...userBaselineStates,
+      [currentPerson]: {
+        ...userBaselineStates[currentPerson],
+        [currentWeightKey]: {
+          weight: userBaselineStates[currentPerson]?.[currentWeightKey]?.weight ?? userProfiles[currentPerson]?.[currentWeightKey] ?? 0,
+          successStreak: userBaselineStates[currentPerson]?.[currentWeightKey]?.successStreak ?? 0,
+          weightStep: nextStep,
+        },
+      },
+    };
+
+    setUserBaselineStates(nextBaselineStates);
+    setShowWeightStepPicker(false);
+
+    saveCurrentBaselineStates(currentPerson, nextBaselineStates[currentPerson]).catch((error) => {
+      console.error("Failed to save weight step:", error);
+    });
   }
 
   useEffect(() => {
-    return () => clearPendingStepperSave();
+    return () => clearPendingOutboundFlush();
   }, []);
 
   useEffect(() => {
@@ -578,7 +695,8 @@ function App() {
   }, [session.warmupStartedAt, session.exerciseIndex]);
 
   async function cancelWorkout() {
-    clearPendingStepperSave();
+    clearPendingOutboundFlush();
+    outboundEventsRef.current = [];
 
     const cancelled = cancelWorkoutState({
       session: sessionRef.current,
@@ -601,6 +719,8 @@ function App() {
   }
 
   function returnHome() {
+    activeRemoteSessionRef.current = null;
+    setActiveRemoteSession(null);
     setLocalSession(initialSession);
     setTandemExerciseId("");
   }
@@ -652,6 +772,8 @@ function App() {
     });
 
     if (newSession.complete) {
+      setPendingAction(action);
+
       const completedResults = newSession.results.filter(
         (r) => r.status === "completed"
       );
@@ -668,6 +790,13 @@ function App() {
       );
       const completedSessionId = newSession.sessionId ?? createSessionId();
       newSession.sessionId = completedSessionId;
+      const preparedCompletedSession = prepareLocalSession(newSession);
+
+      locallyCompletedSessionIdsRef.current.add(completedSessionId);
+      activeRemoteSessionRef.current = null;
+      setActiveRemoteSession(null);
+      setLocalSession(preparedCompletedSession);
+
       const completedSummary = {
         sessionId: completedSessionId,
         completedAt,
@@ -710,7 +839,7 @@ function App() {
           sessionId: completedSessionId,
           summary: completedSummary,
           baselineStates: updatedBaselineStates,
-          session: newSession,
+          session: preparedCompletedSession,
         });
         cleanupEventsForNonActiveWorkoutSessions().catch((error) => {
           console.error("Failed to clean up workout events:", error);
@@ -722,7 +851,7 @@ function App() {
           setBaselineChangeRows(changeRows);
           setShowBaselineChanges(true);
           setCompletedWorkouts((current) => [
-            ...current.filter((workout) => workout.id !== newSession.sessionId),
+            ...current.filter((workout) => workout.id !== completedSessionId),
             { id: completedSessionId, ...completedSummary },
           ]);
         } else {
@@ -732,10 +861,9 @@ function App() {
       } catch (error) {
         console.error("Failed to finalize workout:", error);
         return;
+      } finally {
+        setPendingAction((current) => current === action ? null : current);
       }
-
-      setLocalSession(prepareLocalSession(newSession));
-      setPendingAction((current) => current === action ? null : current);
     } else {
       await commitSession(newSession, action, status === "skipped" ? "skipSet" : "completeSet");
     }
@@ -1143,7 +1271,17 @@ function App() {
     <main className="app">
       <section className="card">
         <WorkoutProgress exerciseIndex={session.exerciseIndex} workout={effectiveWorkout} />
-        <h1>{exercise.name}</h1>
+        <div className="exercise-title-row">
+          <h1>{exercise.name}</h1>
+          <button
+            className="weight-step-icon-button"
+            type="button"
+            aria-label={`Weight step: ${formatWeightStep(currentWeightStep)} lb`}
+            onClick={() => setShowWeightStepPicker(true)}
+          >
+            <img src="/weight-step-icon.svg" alt="" aria-hidden="true" />
+          </button>
+        </div>
         <p className="subtitle">
           {currentPerson} — Set {session.currentSet} of {exercise.sets}
         </p>
@@ -1193,7 +1331,7 @@ function App() {
                   session: currentSession,
                   workout: workoutForSession,
                   userStrategies,
-                  delta: -5,
+                  delta: -currentWeightStep,
                 });
               });
             }}
@@ -1209,7 +1347,7 @@ function App() {
                   session: currentSession,
                   workout: workoutForSession,
                   userStrategies,
-                  delta: 5,
+                  delta: currentWeightStep,
                 });
               });
             }}
@@ -1217,6 +1355,34 @@ function App() {
             +
           </button>
         </div>
+        {showWeightStepPicker && (
+          <div className="modal-backdrop" role="presentation" onClick={() => setShowWeightStepPicker(false)}>
+            <div
+              className="modal weight-step-modal"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="weight-step-title"
+              onClick={(event) => event.stopPropagation()}
+            >
+              <h2 id="weight-step-title">Weight Step</h2>
+              <div className="weight-step-options">
+                {weightStepOptions.map((step) => (
+                  <button
+                    key={step}
+                    className={step === currentWeightStep ? "weight-step-option selected" : "weight-step-option"}
+                    type="button"
+                    onClick={() => chooseCurrentWeightStep(step)}
+                  >
+                    {formatWeightStep(step)} lb
+                  </button>
+                ))}
+              </div>
+              <button className="link-button modal-close-button" type="button" onClick={() => setShowWeightStepPicker(false)}>
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
 
         <div className="button-row">
           <button className="secondary-button" disabled={pendingAction === "skip"} onClick={() => recordSet("skipped")}>

@@ -37,6 +37,7 @@ export type WorkoutSession = {
   localRevision?: number;
   lastWriterId?: string;
   eventSequence?: number;
+  lastClientSequences?: Record<string, number>;
 };
 
 export const initialSession: WorkoutSession = {
