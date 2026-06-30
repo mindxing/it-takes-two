@@ -117,6 +117,15 @@ export const workout: Exercise[] = [
     setPlan: smallStepPyramid,
   },
   {
+    id: "seated_dip",
+    name: "Seated Dip",
+    sets: 3,
+    reps: "10â€“15",
+    defaultReps: 12,
+    defaultWeight: { Victoria: 30, Mike: 85 },
+    setPlan: smallStepPyramid,
+  },
+  {
     id: "abs",
     name: "Abs",
     sets: 3,

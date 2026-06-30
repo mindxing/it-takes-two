@@ -32,10 +32,15 @@
 - [x] Add group model and migration tests
 - [x] Purge temporary sync events for all non-active workout sessions
 - [x] Move runtime/history state back to top-level collections with explicit group ids
+- [x] Add temporary group selection flow for assumed Mike/Victoria user
+- [x] Add completed-workout history chart
+- [x] Add tandem partner target swap UI
+- [x] Add workout background image
+- [x] Wait for workout plan and baselines before allowing workout start
 
 ## Immediate
 
-- [ ] Push latest local commits when ready
+- [x] Push latest local commits when ready
 - [x] Run default group migration when ready
 - [x] Flip app reads/writes to group-scoped paths after migration is verified
 - [x] Confirm local app reads `workoutPlans/default` successfully
@@ -48,11 +53,12 @@
   - [x] Postpone exercise sync
   - [x] Cancel workout sync
   - [x] Complete workout sync
-  - [ ] Completed history graph
+  - [x] Completed history graph
   - [x] Weight progression updates
   - [x] Inner / outer thigh machine flow
   - [x] Tandem simple exercise flow
   - [x] Tandem with compound exercise flow
+  - [ ] Tandem partner target swap
 
 ## Data-Driven Workout Plans
 
@@ -61,7 +67,7 @@
 - [x] Update `workoutPlans/default.exerciseIds`
 - [x] Add default current baselines for new exercise IDs
 - [x] Separate current baselines from profile preferences
-- [ ] Decide whether set/reps/setPlan should live in `workoutPlans/default.items`
+- [x] Decide whether set/reps/setPlan should live in `workoutPlans/default.items` (exercise docs own defaults; plan items stay available for overrides/order)
 - [ ] Add an admin/edit UI for workout plans, if manual Firebase editing becomes annoying
 
 ## Groups
@@ -73,6 +79,7 @@
 - [x] Run `npm run migrate:default-group` from bash when ready
 - [x] Update app data access to use `workoutGroups/{groupId}/...`
 - [x] Add temporary group selection layer for assumed Mike/Victoria user
+- [x] Add tests for temporary group selection behavior
 - [ ] Add full group onboarding UI
 - [ ] Add authentication
 - [ ] Add Firestore rules for group membership
@@ -81,16 +88,17 @@
 
 - [x] Add cancel workout to the who goes first screen
 - [ ] Add loading states
-  - [ ] Connecting
+  - [x] Loading workout group
   - [ ] Saving
-  - [ ] Loading workout plan
+  - [x] Loading workout plan / baselines before start
 - [ ] Improve mobile layout
 - [ ] Increase button sizes
 - [ ] Reduce accidental taps
 - [ ] Make current state clearer: person, set, exercise
 - [ ] Remove debug text from completed workout screen
-- [ ] Improve graph styling
+- [ ] Improve completed history graph styling
 - [ ] Improve tandem selection UI wording/guardrails after more gym testing
+- [ ] Improve tandem partner target swap affordance after gym testing
 
 ## Reliability
 
@@ -98,7 +106,7 @@
 - [ ] Handle missing or invalid Firestore workout plan data gracefully in the UI
 - [x] Protect workout completion summary from duplicate writes
 - [x] Use transactional event/session writes for critical transitions
-- [ ] Auto-refresh completed workouts instead of loading only after completion
+- [x] Reload completed workouts when the active group changes and after completion
 - [ ] Add browser-level smoke tests for critical UI wiring
 
 ## Security

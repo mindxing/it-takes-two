@@ -32,8 +32,8 @@ export type WorkoutSession = {
   status?: "active" | "completed" | "cancelled";
   createdAt?: string;
   updatedAt?: string;
-  completedAt?: string;
-  cancelledAt?: string;
+  completedAt?: string | null;
+  cancelledAt?: string | null;
   localRevision?: number;
   lastWriterId?: string;
   eventSequence?: number;
@@ -94,7 +94,10 @@ export function startWorkoutSession(sessionId: string, workoutPlan: Exercise[]):
     ...initialSession,
     sessionId,
     started: true,
+    complete: false,
     status: "active",
+    completedAt: null,
+    cancelledAt: null,
     reorderedWorkout: workoutPlan,
   };
 }

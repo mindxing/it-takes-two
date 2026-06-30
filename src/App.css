@@ -247,6 +247,19 @@ button:disabled {
   text-decoration: underline;
 }
 
+.inline-error {
+  margin-top: 16px;
+  padding: 12px;
+  border: 1px solid #fecaca;
+  border-radius: 8px;
+  background: #fef2f2;
+  color: #991b1b;
+  font-size: 0.95rem;
+  font-weight: 700;
+  line-height: 1.35;
+  text-align: left;
+}
+
 .modal-backdrop {
   position: fixed;
   inset: 0;

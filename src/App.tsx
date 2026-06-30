@@ -309,6 +309,7 @@ function App() {
   const [pastSession, setPastSession] = useState<WorkoutSession | null>(null);
   const [warmupSeconds, setWarmupSeconds] = useState(0);
   const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
+  const [completionError, setCompletionError] = useState("");
   const [workoutPlanLoaded, setWorkoutPlanLoaded] = useState(false);
   const [userSettingsLoaded, setUserSettingsLoaded] = useState(false);
   const [tandemExerciseId, setTandemExerciseId] = useState("");
@@ -380,6 +381,7 @@ function App() {
     setViewingPast(false);
     setPastSession(null);
     setTandemExerciseId("");
+    setCompletionError("");
     setCompletedWorkouts([]);
     setWorkoutPlanLoaded(false);
     setUserSettingsLoaded(false);
@@ -721,8 +723,11 @@ function App() {
   }, [session.warmupStartedAt, session.exerciseIndex]);
 
   async function cancelWorkout() {
+    if (pendingAction) return;
+
     clearPendingOutboundFlush();
     outboundEventsRef.current = [];
+    setCompletionError("");
 
     const cancelled = cancelWorkoutState({
       session: sessionRef.current,
@@ -749,6 +754,7 @@ function App() {
     setActiveRemoteSession(null);
     setLocalSession(initialSession);
     setTandemExerciseId("");
+    setCompletionError("");
   }
 
   async function joinActiveWorkout() {
@@ -785,6 +791,7 @@ function App() {
     const action = status === "skipped" ? "skip" : "done";
 
     if (pendingAction === action) return;
+    setCompletionError("");
 
     const completedAt = new Date().toISOString();
     const newSession = recordSetAndAdvance({
@@ -817,11 +824,6 @@ function App() {
       const completedSessionId = newSession.sessionId ?? createSessionId();
       newSession.sessionId = completedSessionId;
       const preparedCompletedSession = prepareLocalSession(newSession);
-
-      locallyCompletedSessionIdsRef.current.add(completedSessionId);
-      activeRemoteSessionRef.current = null;
-      setActiveRemoteSession(null);
-      setLocalSession(preparedCompletedSession);
 
       const completedSummary = {
         sessionId: completedSessionId,
@@ -871,6 +873,11 @@ function App() {
           console.error("Failed to clean up workout events:", error);
         });
 
+        locallyCompletedSessionIdsRef.current.add(completedSessionId);
+        activeRemoteSessionRef.current = null;
+        setActiveRemoteSession(null);
+        setLocalSession(preparedCompletedSession);
+
         if (finalizeResult.created) {
           setUserBaselineStates(updatedBaselineStates);
           setUserProfiles(updatedProfiles);
@@ -886,6 +893,7 @@ function App() {
         }
       } catch (error) {
         console.error("Failed to finalize workout:", error);
+        setCompletionError("Workout was not saved. Keep this screen open and tap Done / Next again.");
         return;
       } finally {
         setPendingAction((current) => current === action ? null : current);
@@ -1427,16 +1435,22 @@ function App() {
         )}
 
         <div className="button-row">
-          <button className="secondary-button" disabled={pendingAction === "skip"} onClick={() => recordSet("skipped")}>
+          <button className="secondary-button" disabled={pendingAction !== null} onClick={() => recordSet("skipped")}>
             Skip
           </button>
-          <button className="primary-button" disabled={pendingAction === "done"} onClick={() => recordSet("completed")}>
-            Done / Next
+          <button className="primary-button" disabled={pendingAction !== null} onClick={() => recordSet("completed")}>
+            {pendingAction === "done" ? "Saving..." : "Done / Next"}
           </button>
         </div>
 
+        {completionError && (
+          <div className="inline-error" role="alert">
+            {completionError}
+          </div>
+        )}
+
         <div>
-          <button className="link-button" onClick={cancelWorkout}>
+          <button className="link-button" disabled={pendingAction !== null} onClick={cancelWorkout}>
             Cancel Workout
           </button>
         </div>

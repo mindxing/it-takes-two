@@ -114,6 +114,11 @@ function effectiveWorkout(session: WorkoutSession, fallback: Exercise[]) {
   const workout = [press, row];
   let session = startWorkoutSession("session-1", workout);
 
+  assert.equal(session.status, "active");
+  assert.equal(session.complete, false);
+  assert.equal(session.completedAt, null);
+  assert.equal(session.cancelledAt, null);
+
   session = chooseFirstPerson({
     session,
     workout,
