@@ -203,6 +203,62 @@ button:disabled {
   max-width: 640px;
 }
 
+.monument-card {
+  max-width: 680px;
+}
+
+.monument-tabs {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0 0 14px;
+}
+
+.monument-tab {
+  min-height: 42px;
+  padding: 8px 10px;
+  border: 1px solid #d4d4d8;
+  border-radius: 8px;
+  background: white;
+  color: #3f3f46;
+  font-size: 0.9rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.monument-tab.selected {
+  border-color: #2563eb;
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
+.monument-visual {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  margin: 16px 0 18px;
+  overflow: hidden;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #e5e7eb;
+}
+
+.monument-image {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.monument-image.grey {
+  filter: grayscale(1) saturate(0.25) brightness(0.94);
+}
+
+.monument-image.color {
+  clip-path: inset(calc(100% - var(--reveal-progress)) 0 0 0);
+}
+
 .team-build-visual {
   position: relative;
   width: 100%;

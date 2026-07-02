@@ -3,8 +3,8 @@ import {
   applyWeightToTeamBuild,
   createInitialTeamBuildState,
   currentSubphaseProgressPercent,
+  defaultTeamBuildTemplate,
   teamBuildProgressPercent,
-  themeParkTemplate,
   totalTemplateRequiredWeight,
 } from "../src/teamBuildModel.ts";
 
@@ -16,34 +16,34 @@ const initial = createInitialTeamBuildState({
   now: startedAt,
 });
 
-assert.equal(initial.themeId, "theme_park");
-assert.equal(initial.currentMajorId, "main_entrance");
+assert.equal(initial.themeId, "sunstone_pyramid");
+assert.equal(initial.currentMajorId, "pyramid");
 assert.equal(initial.currentPhaseId, "foundation");
-assert.equal(initial.currentSubphaseId, "front_path");
-assert.equal(initial.currentSubphaseRequiredWeight, 8000);
-assert.equal(initial.totalRequiredWeight, totalTemplateRequiredWeight(themeParkTemplate));
+assert.equal(initial.currentSubphaseId, "survey_site");
+assert.equal(initial.currentSubphaseRequiredWeight, 20000);
+assert.equal(initial.totalRequiredWeight, totalTemplateRequiredWeight(defaultTeamBuildTemplate));
 assert.equal(teamBuildProgressPercent(initial), 0);
 
 const partial = applyWeightToTeamBuild({
   state: initial,
-  weight: 4000,
+  weight: 10000,
   now: updatedAt,
 });
 
-assert.equal(partial.currentSubphaseId, "front_path");
-assert.equal(partial.currentSubphaseContributedWeight, 4000);
+assert.equal(partial.currentSubphaseId, "survey_site");
+assert.equal(partial.currentSubphaseContributedWeight, 10000);
 assert.equal(currentSubphaseProgressPercent(partial), 50);
 assert.deepEqual(partial.completedSubphaseIds, []);
 
 const advanced = applyWeightToTeamBuild({
   state: partial,
-  weight: 7000,
+  weight: 25000,
   now: updatedAt,
 });
 
-assert.equal(advanced.currentSubphaseId, "ticket_booth");
-assert.equal(advanced.currentSubphaseContributedWeight, 3000);
-assert.deepEqual(advanced.completedSubphaseIds, ["front_path"]);
+assert.equal(advanced.currentSubphaseId, "lay_foundation");
+assert.equal(advanced.currentSubphaseContributedWeight, 15000);
+assert.deepEqual(advanced.completedSubphaseIds, ["survey_site"]);
 assert.deepEqual(advanced.completedPhaseIds, []);
 
 const completed = applyWeightToTeamBuild({
@@ -55,10 +55,8 @@ const completed = applyWeightToTeamBuild({
 assert.equal(completed.status, "completed");
 assert.equal(completed.completedAt, updatedAt);
 assert.equal(completed.totalContributedWeight, completed.totalRequiredWeight);
-assert.equal(completed.currentSubphaseId, "wheel_complete");
-assert.ok(completed.completedMajorIds.includes("main_entrance"));
-assert.ok(completed.completedMajorIds.includes("midway"));
-assert.ok(completed.completedMajorIds.includes("ferris_wheel"));
+assert.equal(completed.currentSubphaseId, "sunrise_finish");
+assert.ok(completed.completedMajorIds.includes("pyramid"));
 assert.equal(teamBuildProgressPercent(completed), 100);
 
 console.log("Team build tests passed.");

@@ -40,7 +40,7 @@ export const defaultWorkoutGroup: WorkoutGroup = {
   },
   defaultWorkoutPlanId,
   activeSessionId: defaultActiveSessionId,
-  activeTeamBuildId: "theme_park_001",
+  activeTeamBuildId: "sunstone_pyramid_001",
   active: true,
 };
 

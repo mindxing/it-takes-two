@@ -20,9 +20,13 @@ export type TeamBuildMajorProject = {
 
 export type TeamBuildTemplate = {
   id: string;
+  buildId: string;
   version: number;
   name: string;
+  shortName: string;
   description: string;
+  imagePath: string;
+  accentColor: string;
   majorProjects: TeamBuildMajorProject[];
 };
 
@@ -57,108 +61,146 @@ type TeamBuildPosition = {
   subphaseIndex: number;
 };
 
-export const defaultTeamBuildId = "theme_park_001";
+const pyramidPhases: TeamBuildPhase[] = [
+  {
+    id: "foundation",
+    name: "Foundation",
+    subphases: [
+      { id: "survey_site", name: "Survey the site", requiredWeight: 20_000 },
+      { id: "lay_foundation", name: "Lay foundation stones", requiredWeight: 35_000 },
+      { id: "build_entry", name: "Build the entry path", requiredWeight: 25_000 },
+    ],
+  },
+  {
+    id: "lower_tiers",
+    name: "Lower Tiers",
+    subphases: [
+      { id: "lower_left", name: "Place lower left blocks", requiredWeight: 40_000 },
+      { id: "lower_center", name: "Place lower center blocks", requiredWeight: 45_000 },
+      { id: "lower_right", name: "Place lower right blocks", requiredWeight: 40_000 },
+    ],
+  },
+  {
+    id: "middle_tiers",
+    name: "Middle Tiers",
+    subphases: [
+      { id: "middle_left", name: "Raise middle left blocks", requiredWeight: 35_000 },
+      { id: "middle_center", name: "Raise middle center blocks", requiredWeight: 40_000 },
+      { id: "middle_right", name: "Raise middle right blocks", requiredWeight: 35_000 },
+    ],
+  },
+  {
+    id: "upper_tiers",
+    name: "Upper Tiers",
+    subphases: [
+      { id: "upper_left", name: "Stack upper left blocks", requiredWeight: 28_000 },
+      { id: "upper_center", name: "Stack upper center blocks", requiredWeight: 32_000 },
+      { id: "upper_right", name: "Stack upper right blocks", requiredWeight: 28_000 },
+    ],
+  },
+  {
+    id: "capstone",
+    name: "Capstone",
+    subphases: [
+      { id: "set_capstone", name: "Set the capstone", requiredWeight: 25_000 },
+      { id: "polish_faces", name: "Polish the faces", requiredWeight: 20_000 },
+      { id: "sunrise_finish", name: "Light the monument", requiredWeight: 22_000 },
+    ],
+  },
+];
 
-export const themeParkTemplate: TeamBuildTemplate = {
-  id: "theme_park",
-  version: 1,
-  name: "Opening Day Theme Park",
-  description: "Build the entrance, midway, and first big ride for opening day.",
-  majorProjects: [
-    {
-      id: "main_entrance",
-      name: "Main Entrance",
-      phases: [
-        {
-          id: "foundation",
-          name: "Foundation",
-          subphases: [
-            { id: "front_path", name: "Front path appears", requiredWeight: 8_000 },
-            { id: "ticket_booth", name: "Ticket booth appears", requiredWeight: 12_000 },
-          ],
-        },
-        {
-          id: "gate",
-          name: "Gate",
-          subphases: [
-            { id: "entry_arch", name: "Entry arch appears", requiredWeight: 14_000 },
-            { id: "park_sign", name: "Sign fills with color", requiredWeight: 8_000 },
-          ],
-        },
-        {
-          id: "lights",
-          name: "Lights",
-          subphases: [
-            { id: "gate_lights", name: "Small lights turn on", requiredWeight: 6_000 },
-            { id: "team_banner", name: "Team banner appears", requiredWeight: 7_000 },
-          ],
-        },
-      ],
-    },
-    {
-      id: "midway",
-      name: "Midway",
-      phases: [
-        {
-          id: "path",
-          name: "Path",
-          subphases: [
-            { id: "central_path", name: "Central path fills in", requiredWeight: 10_000 },
-            { id: "benches", name: "Benches appear", requiredWeight: 6_000 },
-          ],
-        },
-        {
-          id: "food_stand",
-          name: "Food Stand",
-          subphases: [
-            { id: "stand_shell", name: "Stand appears", requiredWeight: 10_000 },
-            { id: "stand_awning", name: "Awning fills with color", requiredWeight: 7_000 },
-          ],
-        },
-        {
-          id: "game_booth",
-          name: "Game Booth",
-          subphases: [
-            { id: "booth_shell", name: "Booth appears", requiredWeight: 9_000 },
-            { id: "prizes_lights", name: "Prizes and signs light up", requiredWeight: 8_000 },
-          ],
-        },
-      ],
-    },
-    {
-      id: "ferris_wheel",
-      name: "Ferris Wheel",
-      phases: [
-        {
-          id: "base",
-          name: "Base",
-          subphases: [
-            { id: "wheel_footings", name: "Footings appear", requiredWeight: 12_000 },
-            { id: "loading_platform", name: "Loading platform fills in", requiredWeight: 10_000 },
-          ],
-        },
-        {
-          id: "wheel",
-          name: "Wheel",
-          subphases: [
-            { id: "wheel_frame", name: "Frame appears", requiredWeight: 18_000 },
-            { id: "gondolas", name: "Gondolas fill in", requiredWeight: 14_000 },
-          ],
-        },
-        {
-          id: "opening",
-          name: "Opening",
-          subphases: [
-            { id: "wheel_lights", name: "Lights turn on", requiredWeight: 8_000 },
-            { id: "wheel_complete", name: "Wheel appears complete", requiredWeight: 10_000 },
-          ],
-        },
-      ],
-    },
-  ],
-};
+const stackedStonePhases: TeamBuildPhase[] = [
+  {
+    id: "foundation",
+    name: "Foundation",
+    subphases: [
+      { id: "prepare_plaza", name: "Prepare the plaza", requiredWeight: 20_000 },
+      { id: "set_footings", name: "Set deep footings", requiredWeight: 35_000 },
+      { id: "place_base", name: "Place base stones", requiredWeight: 35_000 },
+    ],
+  },
+  {
+    id: "lower_sections",
+    name: "Lower Sections",
+    subphases: [
+      { id: "lower_course_one", name: "Raise first course", requiredWeight: 35_000 },
+      { id: "lower_course_two", name: "Raise second course", requiredWeight: 35_000 },
+      { id: "lower_band", name: "Install lower band", requiredWeight: 28_000 },
+    ],
+  },
+  {
+    id: "middle_sections",
+    name: "Middle Sections",
+    subphases: [
+      { id: "middle_course_one", name: "Raise middle course", requiredWeight: 32_000 },
+      { id: "middle_course_two", name: "Brace the monument", requiredWeight: 32_000 },
+      { id: "middle_band", name: "Install middle band", requiredWeight: 28_000 },
+    ],
+  },
+  {
+    id: "upper_sections",
+    name: "Upper Sections",
+    subphases: [
+      { id: "upper_course_one", name: "Raise upper course", requiredWeight: 28_000 },
+      { id: "upper_course_two", name: "Set upper stones", requiredWeight: 28_000 },
+      { id: "upper_trim", name: "Finish upper trim", requiredWeight: 22_000 },
+    ],
+  },
+  {
+    id: "crown",
+    name: "Crown",
+    subphases: [
+      { id: "set_crown", name: "Set the crown", requiredWeight: 24_000 },
+      { id: "gold_finish", name: "Add gold finish", requiredWeight: 18_000 },
+      { id: "dedication", name: "Complete the dedication", requiredWeight: 20_000 },
+    ],
+  },
+];
 
-export function totalTemplateRequiredWeight(template = themeParkTemplate) {
+export const monumentTemplates: TeamBuildTemplate[] = [
+  {
+    id: "sunstone_pyramid",
+    buildId: "sunstone_pyramid_001",
+    version: 1,
+    name: "Sunstone Pyramid",
+    shortName: "Pyramid",
+    description: "Stack sandstone blocks from the foundation to the capstone.",
+    imagePath: "/team-monument-sunstone-pyramid.png",
+    accentColor: "#d97706",
+    majorProjects: [{ id: "pyramid", name: "Pyramid", phases: pyramidPhases }],
+  },
+  {
+    id: "victory_obelisk",
+    buildId: "victory_obelisk_001",
+    version: 1,
+    name: "Victory Obelisk",
+    shortName: "Obelisk",
+    description: "Raise a stone obelisk section by section.",
+    imagePath: "/team-monument-victory-obelisk.png",
+    accentColor: "#0f766e",
+    majorProjects: [{ id: "obelisk", name: "Obelisk", phases: stackedStonePhases }],
+  },
+  {
+    id: "founders_arch",
+    buildId: "founders_arch_001",
+    version: 1,
+    name: "Founders Arch",
+    shortName: "Arch",
+    description: "Build a triumphal arch from base blocks to crown.",
+    imagePath: "/team-monument-founders-arch.png",
+    accentColor: "#b45309",
+    majorProjects: [{ id: "arch", name: "Arch", phases: stackedStonePhases }],
+  },
+];
+
+export const defaultTeamBuildTemplate = monumentTemplates[0];
+export const defaultTeamBuildId = defaultTeamBuildTemplate.buildId;
+
+export function teamBuildTemplateForTheme(themeId: string) {
+  return monumentTemplates.find((template) => template.id === themeId) ?? defaultTeamBuildTemplate;
+}
+
+export function totalTemplateRequiredWeight(template = defaultTeamBuildTemplate) {
   return template.majorProjects.reduce(
     (majorTotal, majorProject) => majorTotal + majorProject.phases.reduce(
       (phaseTotal, phase) => phaseTotal + phase.subphases.reduce(
@@ -234,10 +276,10 @@ function applyPositionToState(
 }
 
 export function createInitialTeamBuildState({
-  buildId = defaultTeamBuildId,
+  buildId,
   groupId,
   now,
-  template = themeParkTemplate,
+  template = defaultTeamBuildTemplate,
 }: {
   buildId?: string;
   groupId: string;
@@ -254,7 +296,7 @@ export function createInitialTeamBuildState({
   }
 
   return {
-    id: buildId,
+    id: buildId ?? template.buildId,
     groupId,
     themeId: template.id,
     templateVersion: template.version,
@@ -282,13 +324,12 @@ export function applyWeightToTeamBuild({
   state,
   weight,
   now,
-  template = themeParkTemplate,
 }: {
   state: TeamBuildState;
   weight: number;
   now: string;
-  template?: TeamBuildTemplate;
 }) {
+  const template = teamBuildTemplateForTheme(state.themeId);
   const appliedWeight = Math.max(0, Math.floor(weight));
 
   if (appliedWeight <= 0 || state.status === "completed") return state;
@@ -407,14 +448,15 @@ export function currentSubphaseProgressPercent(state: TeamBuildState) {
   return Math.min(100, Math.round((state.currentSubphaseContributedWeight / state.currentSubphaseRequiredWeight) * 100));
 }
 
-export function currentTeamBuildLabels(state: TeamBuildState, template = themeParkTemplate) {
-  const majorProject = template.majorProjects.find((item) => item.id === state.currentMajorId);
-  const phase = majorProject?.phases.find((item) => item.id === state.currentPhaseId);
-  const subphase = phase?.subphases.find((item) => item.id === state.currentSubphaseId);
+export function currentTeamBuildLabels(state: TeamBuildState) {
+  const template = teamBuildTemplateForTheme(state.themeId);
+  const majorProject = template.majorProjects[state.currentMajorIndex];
+  const phase = majorProject?.phases[state.currentPhaseIndex];
+  const subphase = phase?.subphases[state.currentSubphaseIndex];
 
   return {
-    majorProjectName: majorProject?.name ?? "Theme Park",
+    majorProjectName: majorProject?.name ?? "Monument",
     phaseName: phase?.name ?? "Current Phase",
-    subphaseName: subphase?.name ?? "Next reveal",
+    subphaseName: subphase?.name ?? "Next stonework",
   };
 }
