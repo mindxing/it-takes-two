@@ -206,10 +206,7 @@ button:disabled {
   overflow: hidden;
   border: 4px solid #111827;
   border-radius: 28px;
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(255, 255, 255, 0.9)),
-    radial-gradient(circle at 50% 38%, rgba(245, 158, 11, 0.16), transparent 36%),
-    #f8fafc;
+  background: #f8fafc;
   box-shadow: 0 14px 32px rgba(17, 24, 39, 0.16);
 }
 
@@ -217,7 +214,7 @@ button:disabled {
   content: "";
   position: absolute;
   inset: 44px 22px 58px;
-  z-index: 0;
+  z-index: 3;
   border: 4px solid #f59e0b;
   border-radius: 24px;
   pointer-events: none;
@@ -229,7 +226,7 @@ button:disabled {
   left: 34%;
   right: 34%;
   bottom: 74px;
-  z-index: 1;
+  z-index: 3;
   height: 4px;
   border-radius: 999px;
   background: #f59e0b;
@@ -240,19 +237,17 @@ button:disabled {
   z-index: 1;
 }
 
+.home-monument-card .monument-dashboard {
+  position: static;
+}
+
 .home-kicker {
-  position: absolute;
-  left: 50%;
-  top: 18px;
-  width: 42%;
-  height: 10px;
-  margin: 0;
-  border-radius: 999px;
-  background: #e5e7eb;
-  transform: translateX(-50%);
+  display: none;
 }
 
 .monument-dashboard h1 {
+  position: relative;
+  z-index: 4;
   width: min-content;
   margin: 64px 0 0 4px;
   color: #111827;
@@ -410,33 +405,28 @@ button:disabled {
 
 .home-monument-visual {
   position: absolute;
-  left: 50%;
-  top: 226px;
+  inset: 0;
   z-index: 1;
-  width: min(82%, 410px);
+  width: auto;
+  height: auto;
   margin: 0;
   border: none;
+  border-radius: 24px;
   background: transparent;
-  transform: translateX(-50%);
+  transform: none;
 }
 
 .home-monument-visual .monument-image.grey {
-  filter: grayscale(1) saturate(0.1) brightness(1.18) contrast(1.1);
-  opacity: 0.82;
+  filter: grayscale(1) saturate(0.12) brightness(1.08) contrast(1.06);
+  opacity: 0.9;
 }
 
 .home-monument-visual .monument-image.color {
-  opacity: 0;
+  opacity: 1;
 }
 
 .workout-avatar {
-  position: absolute;
-  bottom: 12px;
-  z-index: 3;
-  width: clamp(104px, 31vw, 156px);
-  max-height: 220px;
-  object-fit: contain;
-  pointer-events: none;
+  display: none;
 }
 
 .avatar-victoria {
