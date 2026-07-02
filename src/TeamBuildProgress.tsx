@@ -59,7 +59,28 @@ export function MonumentDashboard({
   return (
     <div className="monument-dashboard">
       <p className="home-kicker" data-team={groupName} aria-hidden="true" />
-      <h1>It Takes Two!</h1>
+      <h1 className="home-title-graphic" aria-label="It Takes Two!">
+        <svg viewBox="0 0 420 130" role="presentation" aria-hidden="true">
+          <defs>
+            <path id="home-title-arc" d="M 28 94 C 118 16, 302 16, 392 94" />
+          </defs>
+          <text className="home-title-shadow">
+            <textPath href="#home-title-arc" startOffset="50%" textAnchor="middle">
+              IT TAKES TWO!
+            </textPath>
+          </text>
+          <text className="home-title-stroke">
+            <textPath href="#home-title-arc" startOffset="50%" textAnchor="middle">
+              IT TAKES TWO!
+            </textPath>
+          </text>
+          <text className="home-title-fill">
+            <textPath href="#home-title-arc" startOffset="50%" textAnchor="middle">
+              IT TAKES TWO!
+            </textPath>
+          </text>
+        </svg>
+      </h1>
       <MonumentReveal state={state} template={template} className="home-monument-visual" />
       <img className="workout-avatar avatar-victoria" src="/avatar-victoria.png" alt="" aria-hidden="true" />
       <img className="workout-avatar avatar-mike" src="/avatar-mike.png" alt="" aria-hidden="true" />
