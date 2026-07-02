@@ -63,6 +63,8 @@ export function MonumentDashboard({
       <p className="home-kicker">{groupName}</p>
       <h1>It Takes Two!</h1>
       <MonumentReveal state={state} template={template} className="home-monument-visual" />
+      <img className="workout-avatar avatar-victoria" src="/avatar-victoria.png" alt="" aria-hidden="true" />
+      <img className="workout-avatar avatar-mike" src="/avatar-mike.png" alt="" aria-hidden="true" />
       <div className="home-progress-copy" aria-label={`${state.name} progress`}>
         <div>
           <span>{state.name}</span>

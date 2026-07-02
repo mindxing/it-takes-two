@@ -303,6 +303,32 @@ button:disabled {
   z-index: 3;
 }
 
+.latest-workout-link {
+  margin-top: 12px;
+}
+
+.home-monument-card .latest-workout-link {
+  position: absolute;
+  left: 50%;
+  bottom: 12px;
+  z-index: 4;
+  margin: 0;
+  color: #4b5563;
+  font-size: 0.78rem;
+  white-space: nowrap;
+  transform: translateX(-50%);
+}
+
+.app-version {
+  margin: 8px 0 0;
+  color: #999;
+  font-size: 0.75rem;
+}
+
+.home-monument-card .app-version {
+  display: none;
+}
+
 .home-progress-copy {
   display: grid;
   gap: 8px;
@@ -397,6 +423,24 @@ button:disabled {
 
 .home-monument-visual .monument-image.color {
   opacity: 0;
+}
+
+.workout-avatar {
+  position: absolute;
+  bottom: 106px;
+  z-index: 2;
+  width: clamp(82px, 24vw, 126px);
+  max-height: 190px;
+  object-fit: contain;
+  pointer-events: none;
+}
+
+.avatar-victoria {
+  left: 8px;
+}
+
+.avatar-mike {
+  right: 8px;
 }
 
 .home-monument-card .home-progress-copy {

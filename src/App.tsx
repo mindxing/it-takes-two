@@ -1217,7 +1217,7 @@ function App() {
 
           {completedWorkouts.length > 0 && (
             <button
-              className="link-button"
+              className="link-button latest-workout-link"
               onClick={() => {
                 const latest = completedWorkouts.sort((a, b) => new Date(b.completedAt).getTime() - new Date(a.completedAt).getTime())[0];
                 setPastSession({
@@ -1234,7 +1234,7 @@ function App() {
             </button>
           )}
 
-          <p style={{ fontSize: "0.75rem", color: "#999", marginTop: "0.5rem" }}>v{APP_VERSION}</p>
+          <p className="app-version">v{APP_VERSION}</p>
         </section>
       </main>
     );
