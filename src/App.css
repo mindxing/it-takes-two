@@ -320,7 +320,7 @@ button:disabled {
   background:
     linear-gradient(90deg, rgba(69, 26, 3, 0.2) 0 2px, transparent 2px 18px),
     linear-gradient(180deg, #d97706 0%, #f59e0b 18%, #b45309 55%, #92400e 100%);
-  transform: rotate(-3deg);
+  transform: none;
 }
 
 .home-start-button::before,
@@ -357,7 +357,7 @@ button:disabled {
 .home-start-button {
   left: 50%;
   top: 178px;
-  transform: translateX(-50%) rotate(-3deg);
+  transform: translateX(-50%);
 }
 
 .home-start-button:hover {
@@ -377,7 +377,7 @@ button:disabled {
   text-shadow:
     0 1px 0 rgba(19, 78, 74, 0.75),
     0 -1px 0 rgba(69, 26, 3, 0.48);
-  transform: translateX(-50%) rotate(3deg);
+  transform: translateX(-50%);
 }
 
 .home-progress-button:hover {
