@@ -419,21 +419,21 @@ button:disabled {
 
 .workout-avatar {
   position: absolute;
-  bottom: -96px;
+  bottom: -190px;
   z-index: 5;
-  width: clamp(330px, 92vw, 520px);
-  max-height: 760px;
+  width: clamp(620px, 172vw, 980px);
+  max-height: 1440px;
   object-fit: contain;
   pointer-events: none;
   filter: drop-shadow(0 10px 18px rgba(17, 24, 39, 0.24));
 }
 
 .avatar-victoria {
-  left: -116px;
+  left: -300px;
 }
 
 .avatar-mike {
-  right: -116px;
+  right: -300px;
 }
 
 .home-monument-card .home-progress-copy {
