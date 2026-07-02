@@ -200,18 +200,47 @@ button:disabled {
 }
 
 .home-monument-card {
-  padding-top: 24px;
+  position: relative;
+  min-height: 620px;
+  padding: 26px 24px;
+  overflow: hidden;
+  border: 4px solid #111827;
+  border-radius: 28px;
+  box-shadow: none;
+}
+
+.home-monument-card::before {
+  content: "";
+  position: absolute;
+  inset: 26px 20px 32px;
+  z-index: 0;
+  border: 4px solid #f59e0b;
+  border-radius: 24px;
+  pointer-events: none;
+}
+
+.home-monument-card > * {
+  position: relative;
+  z-index: 1;
 }
 
 .home-kicker {
-  margin: 0 0 4px;
-  color: #71717a;
-  font-size: 0.82rem;
+  margin: 0;
+  color: #a16207;
+  font-size: 0.8rem;
   font-weight: 800;
+  text-align: right;
 }
 
 .monument-dashboard h1 {
-  margin-bottom: 14px;
+  width: min-content;
+  margin: 2px 0 0;
+  color: #111827;
+  font-size: clamp(2.35rem, 12vw, 4.2rem);
+  line-height: 0.92;
+  text-align: left;
+  transform: rotate(-12deg);
+  transform-origin: left center;
 }
 
 .home-action-row {
@@ -228,10 +257,56 @@ button:disabled {
   font-size: 0.98rem;
 }
 
+.home-start-button,
+.home-progress-button {
+  position: absolute;
+  z-index: 3;
+  width: 42%;
+  min-height: 96px;
+  padding: 12px;
+  border-radius: 16px;
+  font-size: clamp(1.05rem, 5vw, 1.45rem);
+  line-height: 1.15;
+  text-transform: lowercase;
+  box-shadow: 0 6px 0 rgba(17, 24, 39, 0.18);
+}
+
+.home-start-button {
+  left: 24px;
+  top: 238px;
+  border: 3px solid #b45309;
+  background: #fef3c7;
+  color: #78350f;
+}
+
+.home-start-button:hover {
+  background: #fde68a;
+}
+
+.home-progress-button {
+  right: 24px;
+  top: 318px;
+  border: 3px solid #16a34a;
+  background: #bbf7d0;
+  color: #166534;
+}
+
+.home-progress-button:hover {
+  background: #86efac;
+}
+
+.home-monument-card .home-action-row {
+  position: absolute;
+  left: 24px;
+  right: 24px;
+  bottom: 48px;
+  z-index: 3;
+}
+
 .home-progress-copy {
   display: grid;
   gap: 8px;
-  margin: 0 0 16px;
+  margin: 0;
   padding: 12px;
   border: 1px solid #e5e7eb;
   border-radius: 8px;
@@ -304,7 +379,37 @@ button:disabled {
 }
 
 .home-monument-visual {
-  margin-top: 0;
+  position: absolute;
+  left: 50%;
+  top: 170px;
+  z-index: 1;
+  width: min(74%, 360px);
+  margin: 0;
+  border: none;
+  background: transparent;
+  transform: translateX(-50%);
+}
+
+.home-monument-visual .monument-image.grey {
+  filter: grayscale(1) saturate(0.1) brightness(1.18) contrast(1.1);
+  opacity: 0.82;
+}
+
+.home-monument-visual .monument-image.color {
+  opacity: 0;
+}
+
+.home-monument-card .home-progress-copy {
+  position: absolute;
+  left: 24px;
+  right: 24px;
+  bottom: 118px;
+  z-index: 2;
+  border: none;
+  border-top: 4px solid #f59e0b;
+  border-radius: 0;
+  background: transparent;
+  padding-top: 12px;
 }
 
 .monument-image {
@@ -321,6 +426,107 @@ button:disabled {
 
 .monument-image.color {
   clip-path: inset(calc(100% - var(--reveal-progress)) 0 0 0);
+}
+
+.progress-orbit-card {
+  min-height: 620px;
+  padding-top: 42px;
+}
+
+.progress-orbit {
+  display: grid;
+  grid-template-columns: 1fr minmax(132px, 190px) 1fr;
+  align-items: center;
+  gap: 4px;
+  margin: 8px 0 24px;
+}
+
+.orbit-side {
+  min-height: 142px;
+  position: relative;
+}
+
+.orbit-side.left .orbit-thumb:first-child {
+  left: 0;
+  top: 52px;
+}
+
+.orbit-side.left .orbit-thumb:last-child {
+  right: 4px;
+  top: 18px;
+}
+
+.orbit-side.right .orbit-thumb:first-child {
+  left: 4px;
+  top: 18px;
+}
+
+.orbit-side.right .orbit-thumb:last-child {
+  right: 0;
+  top: 52px;
+}
+
+.orbit-thumb {
+  position: absolute;
+  width: clamp(72px, 18vw, 96px);
+  aspect-ratio: 1;
+  overflow: hidden;
+  padding: 0;
+  border: 4px solid #111827;
+  border-radius: 50%;
+  background: white;
+  cursor: pointer;
+}
+
+.orbit-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  filter: grayscale(1) brightness(0.96);
+}
+
+.orbit-current {
+  width: clamp(136px, 36vw, 190px);
+  aspect-ratio: 1;
+  overflow: hidden;
+  border: 4px solid #111827;
+  border-radius: 50%;
+  background: white;
+}
+
+.orbit-current-visual {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+}
+
+.orbit-current-visual .monument-image {
+  object-fit: cover;
+}
+
+.progress-copy {
+  margin: 0 0 20px;
+  text-align: center;
+}
+
+.progress-copy h1 {
+  margin-bottom: 6px;
+  font-size: 1.55rem;
+}
+
+.progress-copy p {
+  margin: 0;
+  color: #52525b;
+  font-size: 1rem;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.compact-tabs {
+  margin-bottom: 20px;
 }
 
 .team-build-visual {

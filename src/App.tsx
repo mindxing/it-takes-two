@@ -1165,7 +1165,7 @@ function App() {
           )}
 
           <button
-            className="primary-button"
+            className={teamBuild ? "primary-button home-start-button" : "primary-button"}
             disabled={pendingAction === "start" || !readyToStart}
             onClick={async () => {
               if (pendingAction === "start" || !readyToStart) return;
@@ -1190,6 +1190,14 @@ function App() {
             {!readyToStart ? "Loading Workout..." : activeRemoteSession ? "Join Workout" : "Start Workout"}
           </button>
 
+          <button
+            className="secondary-button home-progress-button"
+            disabled={!teamBuild}
+            onClick={() => setViewingTeamBuild(true)}
+          >
+            View Progress
+          </button>
+
           <div className="home-action-row">
             <button
               className="secondary-button compact-secondary-button"
@@ -1206,10 +1214,6 @@ function App() {
               Map
             </button>
           </div>
-
-          <button className="link-button" disabled={!teamBuild} onClick={() => setViewingTeamBuild(true)}>
-            Details
-          </button>
 
           {completedWorkouts.length > 0 && (
             <button

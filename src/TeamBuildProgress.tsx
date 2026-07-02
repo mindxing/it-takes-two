@@ -61,11 +61,11 @@ export function MonumentDashboard({
   return (
     <div className="monument-dashboard">
       <p className="home-kicker">{groupName}</p>
-      <h1>{state.name}</h1>
+      <h1>It Takes Two!</h1>
       <MonumentReveal state={state} template={template} className="home-monument-visual" />
-      <div className="home-progress-copy">
+      <div className="home-progress-copy" aria-label={`${state.name} progress`}>
         <div>
-          <span>{formatWeight(state.totalContributedWeight)}</span>
+          <span>{state.name}</span>
           <strong>{totalProgress}%</strong>
         </div>
         <div className="team-build-meter" aria-hidden="true">
@@ -171,15 +171,51 @@ export function TeamBuildProgress({ state, onBack }: TeamBuildProgressProps) {
 
   return (
     <main className="app">
-      <section className="card monument-card">
-        <h1>{selectedTemplate.name}</h1>
-        <p className="subtitle">
-          {selectedIsActive
-            ? state.status === "completed" ? "Complete" : `${labels.phaseName} - ${labels.subphaseName}`
-            : selectedTemplate.description}
-        </p>
+      <section className="card monument-card progress-orbit-card">
+        <div className="progress-orbit" aria-label="Monument options">
+          <div className="orbit-side left">
+            {monumentTemplates.filter((template) => template.id !== selectedTemplate.id).slice(0, 2).map((template) => (
+              <button
+                key={template.id}
+                className="orbit-thumb"
+                type="button"
+                onClick={() => setSelectedTemplateId(template.id)}
+                aria-label={template.name}
+              >
+                <img src={template.imagePath} alt="" />
+              </button>
+            ))}
+          </div>
 
-        <div className="monument-tabs" aria-label="Monument options">
+          <div className="orbit-current">
+            <MonumentReveal state={state} template={selectedTemplate} className="orbit-current-visual" />
+          </div>
+
+          <div className="orbit-side right">
+            {monumentTemplates.filter((template) => template.id !== selectedTemplate.id).slice().reverse().slice(0, 2).map((template) => (
+              <button
+                key={template.id}
+                className="orbit-thumb"
+                type="button"
+                onClick={() => setSelectedTemplateId(template.id)}
+                aria-label={template.name}
+              >
+                <img src={template.imagePath} alt="" />
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="progress-copy">
+          <h1>{selectedTemplate.name}</h1>
+          <p>
+            {selectedIsActive
+              ? state.status === "completed" ? "Complete" : `${labels.phaseName} - ${labels.subphaseName}`
+              : selectedTemplate.description}
+          </p>
+        </div>
+
+        <div className="monument-tabs compact-tabs" aria-label="Monument options">
           {monumentTemplates.map((template) => (
             <button
               key={template.id}
@@ -191,8 +227,6 @@ export function TeamBuildProgress({ state, onBack }: TeamBuildProgressProps) {
             </button>
           ))}
         </div>
-
-        <MonumentReveal state={state} template={selectedTemplate} />
 
         <div className="team-build-progress-panel">
           <div>
