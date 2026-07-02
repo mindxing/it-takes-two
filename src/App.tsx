@@ -1198,42 +1198,6 @@ function App() {
             View Progress
           </button>
 
-          <div className="home-action-row">
-            <button
-              className="secondary-button compact-secondary-button"
-              disabled={!teamBuild}
-              onClick={() => setMonumentView("completed")}
-            >
-              Completed
-            </button>
-            <button
-              className="secondary-button compact-secondary-button"
-              disabled={!teamBuild}
-              onClick={() => setMonumentView("map")}
-            >
-              Map
-            </button>
-          </div>
-
-          {completedWorkouts.length > 0 && (
-            <button
-              className="link-button latest-workout-link"
-              onClick={() => {
-                const latest = completedWorkouts.sort((a, b) => new Date(b.completedAt).getTime() - new Date(a.completedAt).getTime())[0];
-                setPastSession({
-                  ...initialSession,
-                  complete: true,
-                  status: "completed",
-                  completedAt: latest.completedAt,
-                  results: latest.results,
-                });
-                setViewingPast(true);
-              }}
-            >
-              View Latest Workout Results
-            </button>
-          )}
-
           <p className="app-version">v{APP_VERSION}</p>
         </section>
       </main>

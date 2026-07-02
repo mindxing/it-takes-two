@@ -55,28 +55,14 @@ export function MonumentDashboard({
   groupName: string;
 }) {
   const template = teamBuildTemplateForTheme(state.themeId);
-  const labels = currentTeamBuildLabels(state);
-  const totalProgress = teamBuildProgressPercent(state);
 
   return (
     <div className="monument-dashboard">
-      <p className="home-kicker">{groupName}</p>
+      <p className="home-kicker" data-team={groupName} aria-hidden="true" />
       <h1>It Takes Two!</h1>
       <MonumentReveal state={state} template={template} className="home-monument-visual" />
       <img className="workout-avatar avatar-victoria" src="/avatar-victoria.png" alt="" aria-hidden="true" />
       <img className="workout-avatar avatar-mike" src="/avatar-mike.png" alt="" aria-hidden="true" />
-      <div className="home-progress-copy" aria-label={`${state.name} progress`}>
-        <div>
-          <span>{state.name}</span>
-          <strong>{totalProgress}%</strong>
-        </div>
-        <div className="team-build-meter" aria-hidden="true">
-          <span style={{ width: `${totalProgress}%`, background: template.accentColor }} />
-        </div>
-        <p>
-          {state.status === "completed" ? "Monument complete" : `${labels.phaseName} - ${labels.subphaseName}`}
-        </p>
-      </div>
     </div>
   );
 }

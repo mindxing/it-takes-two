@@ -201,22 +201,38 @@ button:disabled {
 
 .home-monument-card {
   position: relative;
-  min-height: 620px;
-  padding: 26px 24px;
+  min-height: 690px;
+  padding: 28px 24px;
   overflow: hidden;
   border: 4px solid #111827;
   border-radius: 28px;
-  box-shadow: none;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(255, 255, 255, 0.9)),
+    radial-gradient(circle at 50% 38%, rgba(245, 158, 11, 0.16), transparent 36%),
+    #f8fafc;
+  box-shadow: 0 14px 32px rgba(17, 24, 39, 0.16);
 }
 
 .home-monument-card::before {
   content: "";
   position: absolute;
-  inset: 26px 20px 32px;
+  inset: 44px 22px 58px;
   z-index: 0;
   border: 4px solid #f59e0b;
   border-radius: 24px;
   pointer-events: none;
+}
+
+.home-monument-card::after {
+  content: "";
+  position: absolute;
+  left: 34%;
+  right: 34%;
+  bottom: 74px;
+  z-index: 1;
+  height: 4px;
+  border-radius: 999px;
+  background: #f59e0b;
 }
 
 .home-monument-card > * {
@@ -225,18 +241,22 @@ button:disabled {
 }
 
 .home-kicker {
+  position: absolute;
+  left: 50%;
+  top: 18px;
+  width: 42%;
+  height: 10px;
   margin: 0;
-  color: #a16207;
-  font-size: 0.8rem;
-  font-weight: 800;
-  text-align: right;
+  border-radius: 999px;
+  background: #e5e7eb;
+  transform: translateX(-50%);
 }
 
 .monument-dashboard h1 {
   width: min-content;
-  margin: 2px 0 0;
+  margin: 64px 0 0 4px;
   color: #111827;
-  font-size: clamp(2.35rem, 12vw, 4.2rem);
+  font-size: clamp(3rem, 15vw, 5.2rem);
   line-height: 0.92;
   text-align: left;
   transform: rotate(-12deg);
@@ -260,12 +280,12 @@ button:disabled {
 .home-start-button,
 .home-progress-button {
   position: absolute;
-  z-index: 3;
-  width: 42%;
-  min-height: 96px;
-  padding: 12px;
-  border-radius: 16px;
-  font-size: clamp(1.05rem, 5vw, 1.45rem);
+  z-index: 4;
+  width: min(44%, 210px);
+  min-height: 116px;
+  padding: 14px;
+  border-radius: 18px;
+  font-size: clamp(1.2rem, 5.4vw, 1.65rem);
   line-height: 1.15;
   text-transform: lowercase;
   box-shadow: 0 6px 0 rgba(17, 24, 39, 0.18);
@@ -273,7 +293,7 @@ button:disabled {
 
 .home-start-button {
   left: 24px;
-  top: 238px;
+  top: 306px;
   border: 3px solid #b45309;
   background: #fef3c7;
   color: #78350f;
@@ -285,7 +305,7 @@ button:disabled {
 
 .home-progress-button {
   right: 24px;
-  top: 318px;
+  top: 392px;
   border: 3px solid #16a34a;
   background: #bbf7d0;
   color: #166534;
@@ -301,22 +321,6 @@ button:disabled {
   right: 24px;
   bottom: 48px;
   z-index: 3;
-}
-
-.latest-workout-link {
-  margin-top: 12px;
-}
-
-.home-monument-card .latest-workout-link {
-  position: absolute;
-  left: 50%;
-  bottom: 12px;
-  z-index: 4;
-  margin: 0;
-  color: #4b5563;
-  font-size: 0.78rem;
-  white-space: nowrap;
-  transform: translateX(-50%);
 }
 
 .app-version {
@@ -407,9 +411,9 @@ button:disabled {
 .home-monument-visual {
   position: absolute;
   left: 50%;
-  top: 170px;
+  top: 226px;
   z-index: 1;
-  width: min(74%, 360px);
+  width: min(82%, 410px);
   margin: 0;
   border: none;
   background: transparent;
@@ -427,20 +431,20 @@ button:disabled {
 
 .workout-avatar {
   position: absolute;
-  bottom: 106px;
-  z-index: 2;
-  width: clamp(82px, 24vw, 126px);
-  max-height: 190px;
+  bottom: 12px;
+  z-index: 3;
+  width: clamp(104px, 31vw, 156px);
+  max-height: 220px;
   object-fit: contain;
   pointer-events: none;
 }
 
 .avatar-victoria {
-  left: 8px;
+  left: 4px;
 }
 
 .avatar-mike {
-  right: 8px;
+  right: 4px;
 }
 
 .home-monument-card .home-progress-copy {
