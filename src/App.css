@@ -293,96 +293,96 @@ button:disabled {
 .home-start-button,
 .home-progress-button {
   position: absolute;
-  z-index: 6;
+  z-index: 5;
   display: grid;
   place-items: center;
-  width: min(43%, 210px);
-  min-height: 104px;
-  padding: 18px 12px 14px;
-  border-radius: 10px 18px 10px 18px;
-  font-family: "Arial Black", Impact, system-ui, sans-serif;
-  font-size: clamp(1.03rem, 4.8vw, 1.42rem);
+  width: min(58%, 280px);
+  min-height: 76px;
+  padding: 14px 34px 12px;
+  border: 5px solid #3f210f;
+  border-radius: 9px;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: clamp(1.05rem, 4.9vw, 1.48rem);
+  font-weight: 900;
   line-height: 1.15;
   letter-spacing: 0;
-  text-transform: lowercase;
+  text-transform: uppercase;
   isolation: isolate;
+  color: #2f1609;
+  text-shadow:
+    0 1px 0 rgba(255, 237, 213, 0.54),
+    0 -1px 0 rgba(69, 26, 3, 0.34);
   box-shadow:
-    0 7px 0 rgba(17, 24, 39, 0.35),
-    0 15px 22px rgba(17, 24, 39, 0.28);
-  transform: rotate(-2deg);
+    inset 0 5px 0 rgba(255, 237, 213, 0.42),
+    inset 0 -8px 0 rgba(69, 26, 3, 0.2),
+    0 8px 0 rgba(69, 26, 3, 0.82),
+    0 18px 22px rgba(17, 24, 39, 0.3);
+  background:
+    linear-gradient(90deg, rgba(69, 26, 3, 0.2) 0 2px, transparent 2px 18px),
+    linear-gradient(180deg, #d97706 0%, #f59e0b 18%, #b45309 55%, #92400e 100%);
+  transform: rotate(-3deg);
 }
 
 .home-start-button::before,
 .home-progress-button::before {
   content: "";
   position: absolute;
-  top: -18px;
-  left: 50%;
-  z-index: -1;
-  width: 46px;
-  height: 46px;
-  border: 4px solid #111827;
+  left: 14px;
+  top: 50%;
+  z-index: 1;
+  width: 14px;
+  height: 14px;
+  border: 3px solid #3f210f;
   border-radius: 50%;
-  background: #fbbf24;
-  box-shadow: inset 0 -5px 0 rgba(146, 64, 14, 0.28);
-  transform: translateX(-50%);
+  background: #fde68a;
+  box-shadow: inset 0 -3px 0 rgba(69, 26, 3, 0.32);
+  transform: translateY(-50%);
 }
 
 .home-start-button::after,
 .home-progress-button::after {
   content: "";
   position: absolute;
-  top: -2px;
-  left: 50%;
-  width: 0;
-  height: 0;
-  border-top: 10px solid transparent;
-  border-bottom: 10px solid transparent;
-  border-left: 16px solid #111827;
-  transform: translateX(-36%);
+  right: 14px;
+  top: 50%;
+  width: 14px;
+  height: 14px;
+  border: 3px solid #3f210f;
+  border-radius: 50%;
+  background: #fde68a;
+  box-shadow: inset 0 -3px 0 rgba(69, 26, 3, 0.32);
+  transform: translateY(-50%);
 }
 
 .home-start-button {
-  left: 36px;
-  top: 318px;
-  border: 4px solid #92400e;
-  background:
-    linear-gradient(135deg, rgba(255, 255, 255, 0.22), transparent 36%),
-    #fef3c7;
-  color: #78350f;
+  left: 50%;
+  top: 280px;
+  transform: translateX(-50%) rotate(-3deg);
 }
 
 .home-start-button:hover {
-  background: #fde68a;
+  background:
+    linear-gradient(90deg, rgba(69, 26, 3, 0.18) 0 2px, transparent 2px 18px),
+    linear-gradient(180deg, #f59e0b 0%, #fbbf24 20%, #b45309 58%, #92400e 100%);
 }
 
 .home-progress-button {
-  right: 36px;
-  top: 420px;
-  border: 4px solid #0f766e;
+  right: 50%;
+  top: 372px;
   background:
-    linear-gradient(135deg, rgba(255, 255, 255, 0.24), transparent 36%),
-    #99f6e4;
-  color: #134e4a;
-  transform: rotate(2deg);
-}
-
-.home-progress-button::before {
-  background: #fb923c;
-}
-
-.home-progress-button::after {
-  top: -5px;
-  width: 17px;
-  height: 17px;
-  border: 4px solid #111827;
-  border-top: none;
-  border-left: none;
-  transform: translateX(-50%) rotate(45deg);
+    linear-gradient(90deg, rgba(69, 26, 3, 0.22) 0 2px, transparent 2px 18px),
+    linear-gradient(180deg, #14b8a6 0%, #2dd4bf 18%, #0f766e 56%, #115e59 100%);
+  color: #fef3c7;
+  text-shadow:
+    0 1px 0 rgba(19, 78, 74, 0.75),
+    0 -1px 0 rgba(69, 26, 3, 0.48);
+  transform: translateX(50%) rotate(3deg);
 }
 
 .home-progress-button:hover {
-  background: #86efac;
+  background:
+    linear-gradient(90deg, rgba(69, 26, 3, 0.2) 0 2px, transparent 2px 18px),
+    linear-gradient(180deg, #2dd4bf 0%, #5eead4 18%, #0f766e 56%, #115e59 100%);
 }
 
 .home-monument-card .home-start-button,
