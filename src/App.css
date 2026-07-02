@@ -4,9 +4,9 @@
   align-items: center;
   justify-content: center;
   padding: 24px;
-  background-color: #f4f4f5;
+  background-color: #2f2418;
   background-image:
-    linear-gradient(rgba(244, 244, 245, 0.62), rgba(244, 244, 245, 0.74)),
+    linear-gradient(180deg, rgba(15, 23, 42, 0.18), rgba(69, 26, 3, 0.34)),
     url("/workout-background-mobile.png");
   background-position: center;
   background-size: cover;
@@ -16,20 +16,31 @@
 
 .card {
   width: 100%;
-  max-width: 420px;
-  padding: 32px;
-  border-radius: 20px;
-  background: white;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.12);
+  max-width: 440px;
+  position: relative;
+  overflow: hidden;
+  padding: 30px;
+  border: 4px solid #111827;
+  border-radius: 18px;
+  background:
+    linear-gradient(180deg, rgba(255, 247, 237, 0.95), rgba(254, 243, 199, 0.92)),
+    repeating-linear-gradient(90deg, rgba(120, 53, 15, 0.07) 0 2px, transparent 2px 18px);
+  box-shadow:
+    0 10px 0 rgba(69, 26, 3, 0.65),
+    0 24px 42px rgba(17, 24, 39, 0.28);
   text-align: center;
 }
 
 h1 {
-  margin: 0 0 8px;
-  font-size: 1.8rem;
-  color: #111827;
+  margin: 0 0 10px;
+  color: #3f210f;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: clamp(1.8rem, 8vw, 2.45rem);
+  line-height: 1.05;
   opacity: 1;
-  font-weight: 700;
+  font-weight: 900;
+  letter-spacing: 0;
+  text-shadow: 0 2px 0 rgba(251, 191, 36, 0.42);
 }
 
 .exercise-title-row {
@@ -52,10 +63,11 @@ h1 {
   align-items: center;
   justify-content: center;
   padding: 0;
-  border: 1px solid #d4d4d8;
+  border: 3px solid #3f210f;
   border-radius: 999px;
-  background: #f8fafc;
+  background: #fbbf24;
   cursor: pointer;
+  box-shadow: inset 0 -4px 0 rgba(146, 64, 14, 0.24);
 }
 
 .weight-step-icon-button img {
@@ -65,23 +77,37 @@ h1 {
 
 .subtitle {
   margin: 0 0 28px;
-  color: #555;
+  color: #5b3417;
+  font-weight: 750;
+  line-height: 1.35;
 }
 
 .primary-button {
   width: 100%;
-  padding: 18px 24px;
-  border: none;
-  border-radius: 14px;
-  font-size: 1.2rem;
-  font-weight: 700;
+  padding: 16px 22px;
+  border: 4px solid #3f210f;
+  border-radius: 10px;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 1.12rem;
+  font-weight: 900;
+  letter-spacing: 0;
+  text-transform: uppercase;
   cursor: pointer;
-  background: #2563eb;
-  color: white;
+  background:
+    linear-gradient(90deg, rgba(69, 26, 3, 0.22) 0 2px, transparent 2px 18px),
+    linear-gradient(180deg, #14b8a6 0%, #2dd4bf 18%, #0f766e 56%, #115e59 100%);
+  color: #fef3c7;
+  text-shadow: 0 1px 0 rgba(19, 78, 74, 0.8);
+  box-shadow:
+    inset 0 4px 0 rgba(240, 253, 250, 0.28),
+    inset 0 -6px 0 rgba(19, 78, 74, 0.28),
+    0 6px 0 rgba(69, 26, 3, 0.72);
 }
 
 .primary-button:hover {
-  background: #1d4ed8;
+  background:
+    linear-gradient(90deg, rgba(69, 26, 3, 0.2) 0 2px, transparent 2px 18px),
+    linear-gradient(180deg, #2dd4bf 0%, #5eead4 18%, #0f766e 56%, #115e59 100%);
 }
 
 button:disabled {
@@ -92,6 +118,11 @@ button:disabled {
 .workout-detail {
   text-align: left;
   margin-bottom: 28px;
+  padding: 14px;
+  border: 3px solid #92400e;
+  border-radius: 10px;
+  background: rgba(255, 247, 237, 0.72);
+  color: #3f210f;
   font-size: 1.1rem;
 }
 
@@ -113,19 +144,19 @@ button:disabled {
 }
 
 .select-field span {
-  color: #555;
+  color: #5b3417;
   font-size: 0.85rem;
-  font-weight: 700;
+  font-weight: 900;
 }
 
 .select-field select {
   width: 100%;
   min-height: 48px;
   padding: 10px 12px;
-  border: 2px solid #d4d4d8;
+  border: 3px solid #92400e;
   border-radius: 8px;
-  background: white;
-  color: #111827;
+  background: #fff7ed;
+  color: #3f210f;
   font: inherit;
 }
 
@@ -143,9 +174,9 @@ button:disabled {
   gap: 8px;
   margin: 8px 0 10px;
   padding: 7px 8px;
-  border: 1px solid #e5e7eb;
+  border: 2px solid #0f766e;
   border-radius: 8px;
-  background: #f8fafc;
+  background: rgba(204, 251, 241, 0.72);
   text-align: left;
 }
 
@@ -153,7 +184,7 @@ button:disabled {
   min-width: 0;
   display: grid;
   gap: 1px;
-  color: #52525b;
+  color: #134e4a;
   font-size: 0.78rem;
   line-height: 1.25;
 }
@@ -172,9 +203,9 @@ button:disabled {
   align-items: center;
   justify-content: center;
   padding: 0;
-  border: 1px solid #d4d4d8;
+  border: 2px solid #0f766e;
   border-radius: 999px;
-  background: white;
+  background: #ccfbf1;
   cursor: pointer;
 }
 
@@ -185,14 +216,24 @@ button:disabled {
 
 .secondary-button {
   width: 100%;
-  padding: 18px 24px;
-  border: 2px solid #d4d4d8;
-  border-radius: 14px;
-  font-size: 1.2rem;
-  font-weight: 700;
+  padding: 16px 22px;
+  border: 4px solid #3f210f;
+  border-radius: 10px;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 1.12rem;
+  font-weight: 900;
+  letter-spacing: 0;
+  text-transform: uppercase;
   cursor: pointer;
-  background: white;
-  color: #333;
+  background:
+    linear-gradient(90deg, rgba(69, 26, 3, 0.2) 0 2px, transparent 2px 18px),
+    linear-gradient(180deg, #d97706 0%, #f59e0b 18%, #b45309 55%, #92400e 100%);
+  color: #2f1609;
+  text-shadow: 0 1px 0 rgba(255, 237, 213, 0.5);
+  box-shadow:
+    inset 0 4px 0 rgba(255, 237, 213, 0.34),
+    inset 0 -6px 0 rgba(69, 26, 3, 0.2),
+    0 6px 0 rgba(69, 26, 3, 0.72);
 }
 
 .home-secondary-button {
@@ -1091,17 +1132,41 @@ button:disabled {
   align-items: center;
   gap: 10px;
   margin: 18px 0;
+  padding: 12px;
+  border: 3px solid #92400e;
+  border-radius: 12px;
+  background: rgba(255, 247, 237, 0.76);
+  color: #3f210f;
   font-size: 1.2rem;
+}
+
+.stepper span {
+  font-family: Georgia, "Times New Roman", serif;
+  font-weight: 900;
+  text-align: left;
+  text-transform: uppercase;
 }
 
 .stepper button {
   padding: 12px;
-  border: none;
-  border-radius: 12px;
+  border: 3px solid #3f210f;
+  border-radius: 50%;
   font-size: 1.5rem;
-  font-weight: 700;
+  font-weight: 900;
   cursor: pointer;
-  background: #e5e7eb;
+  background: #fbbf24;
+  color: #3f210f;
+  box-shadow: inset 0 -4px 0 rgba(146, 64, 14, 0.24);
+}
+
+.stepper strong {
+  min-width: 0;
+  padding: 8px 6px;
+  border: 2px solid #0f766e;
+  border-radius: 8px;
+  background: rgba(204, 251, 241, 0.8);
+  color: #134e4a;
+  font-size: 1rem;
 }
 
 .summary-card {
@@ -1114,12 +1179,17 @@ button:disabled {
 }
 
 .summary-exercise {
-  padding: 14px 0;
-  border-top: 1px solid #e5e7eb;
+  margin: 12px 0;
+  padding: 14px;
+  border: 3px solid #92400e;
+  border-radius: 10px;
+  background: rgba(255, 247, 237, 0.72);
 }
 
 .summary-exercise h2 {
   margin: 0 0 8px;
+  color: #3f210f;
+  font-family: Georgia, "Times New Roman", serif;
   font-size: 1.1rem;
 }
 
@@ -1131,8 +1201,9 @@ button:disabled {
   margin-top: 18px;
   border: none;
   background: transparent;
-  color: #555;
+  color: #0f766e;
   font-size: 0.95rem;
+  font-weight: 800;
   cursor: pointer;
   text-decoration: underline;
 }
@@ -1140,9 +1211,9 @@ button:disabled {
 .inline-error {
   margin-top: 16px;
   padding: 12px;
-  border: 1px solid #fecaca;
+  border: 3px solid #991b1b;
   border-radius: 8px;
-  background: #fef2f2;
+  background: #fee2e2;
   color: #991b1b;
   font-size: 0.95rem;
   font-weight: 700;
@@ -1158,7 +1229,7 @@ button:disabled {
   align-items: center;
   justify-content: center;
   padding: 20px;
-  background: rgba(17, 24, 39, 0.48);
+  background: rgba(17, 24, 39, 0.62);
 }
 
 .modal {
@@ -1166,16 +1237,23 @@ button:disabled {
   max-height: calc(100vh - 40px);
   overflow: auto;
   padding: 24px;
-  border-radius: 8px;
-  background: white;
-  color: #111827;
+  border: 4px solid #111827;
+  border-radius: 14px;
+  background:
+    linear-gradient(180deg, rgba(255, 247, 237, 0.98), rgba(254, 243, 199, 0.96)),
+    repeating-linear-gradient(90deg, rgba(120, 53, 15, 0.07) 0 2px, transparent 2px 18px);
+  color: #3f210f;
   text-align: left;
-  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.24);
+  box-shadow:
+    0 8px 0 rgba(69, 26, 3, 0.7),
+    0 22px 50px rgba(0, 0, 0, 0.28);
 }
 
 .modal h2 {
   margin: 0 0 16px;
+  font-family: Georgia, "Times New Roman", serif;
   font-size: 1.25rem;
+  font-weight: 900;
 }
 
 .weight-step-modal {
@@ -1191,19 +1269,19 @@ button:disabled {
 
 .weight-step-option {
   min-height: 48px;
-  border: 1px solid #d4d4d8;
+  border: 3px solid #92400e;
   border-radius: 8px;
-  background: white;
-  color: #111827;
+  background: #fff7ed;
+  color: #3f210f;
   font-size: 1rem;
   font-weight: 800;
   cursor: pointer;
 }
 
 .weight-step-option.selected {
-  border-color: #2563eb;
-  background: #eff6ff;
-  color: #1d4ed8;
+  border-color: #0f766e;
+  background: #ccfbf1;
+  color: #134e4a;
 }
 
 .modal-close-button {
@@ -1220,11 +1298,11 @@ button:disabled {
 .baseline-table th,
 .baseline-table td {
   padding: 10px 8px;
-  border-bottom: 1px solid #e5e7eb;
+  border-bottom: 2px solid rgba(146, 64, 14, 0.26);
 }
 
 .baseline-table th {
-  color: #555;
+  color: #5b3417;
   font-size: 0.8rem;
   text-align: left;
 }
@@ -1246,7 +1324,7 @@ button:disabled {
 
 .baseline-detail {
   margin-top: 4px;
-  color: #555;
+  color: #5b3417;
   font-size: 0.78rem;
   font-weight: 600;
   line-height: 1.2;
@@ -1282,12 +1360,19 @@ button:disabled {
 
 .card {
   width: 100%;
-  max-width: 420px;
-  padding: 32px;
-  border-radius: 20px;
-  background: white;
+  max-width: 440px;
+  position: relative;
+  overflow: hidden;
+  padding: 30px;
+  border: 4px solid #111827;
+  border-radius: 18px;
+  background:
+    linear-gradient(180deg, rgba(255, 247, 237, 0.95), rgba(254, 243, 199, 0.92)),
+    repeating-linear-gradient(90deg, rgba(120, 53, 15, 0.07) 0 2px, transparent 2px 18px);
   color: #111827;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.12);
+  box-shadow:
+    0 10px 0 rgba(69, 26, 3, 0.65),
+    0 24px 42px rgba(17, 24, 39, 0.28);
   text-align: center;
 }
  
@@ -1302,13 +1387,19 @@ button:disabled {
 }
 
 .progress-block {
-  margin-bottom: 18px;
+  margin-bottom: 20px;
+  padding: 10px 12px;
+  border: 3px solid #92400e;
+  border-radius: 12px;
+  background: rgba(255, 247, 237, 0.7);
 }
 
 .progress-text {
   font-size: 0.9rem;
-  color: #666;
+  color: #5b3417;
   margin-bottom: 8px;
+  font-weight: 900;
+  text-transform: uppercase;
 }
 
 .progress-dots {
@@ -1318,30 +1409,32 @@ button:disabled {
 }
 
 .progress-dot {
-  width: 12px;
-  height: 12px;
-  border-radius: 4px;
-  background: #d4d4d8;
+  width: 14px;
+  height: 14px;
+  border: 2px solid #3f210f;
+  border-radius: 50%;
+  background: #fef3c7;
 }
 
 .progress-dot.done {
-  background: #93c5fd;
+  background: #fbbf24;
 }
 
 .progress-dot.current {
-  background: #2563eb;
+  background: #14b8a6;
+  box-shadow: 0 0 0 3px rgba(20, 184, 166, 0.24);
 }
 
 @media (prefers-color-scheme: dark) {
   body {
     color: #111827;
-    background: #f4f4f5;
+    background: #2f2418;
   }
 
   .app {
-    background-color: #f4f4f5;
+    background-color: #2f2418;
     background-image:
-      linear-gradient(rgba(244, 244, 245, 0.62), rgba(244, 244, 245, 0.74)),
+      linear-gradient(180deg, rgba(15, 23, 42, 0.18), rgba(69, 26, 3, 0.34)),
       url("/workout-background-mobile.png");
     background-position: center;
     background-size: cover;
@@ -1349,7 +1442,9 @@ button:disabled {
   }
 
   .card {
-    background: white;
+    background:
+      linear-gradient(180deg, rgba(255, 247, 237, 0.95), rgba(254, 243, 199, 0.92)),
+      repeating-linear-gradient(90deg, rgba(120, 53, 15, 0.07) 0 2px, transparent 2px 18px);
     color: #111827;
   }
 
