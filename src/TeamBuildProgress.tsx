@@ -24,6 +24,138 @@ function progressForTemplate(state: TeamBuildState, template: TeamBuildTemplate)
   return teamBuildProgressPercent(state);
 }
 
+function MonumentReveal({
+  state,
+  template,
+  className = "",
+}: {
+  state: TeamBuildState;
+  template: TeamBuildTemplate;
+  className?: string;
+}) {
+  const revealPercent = progressForTemplate(state, template);
+
+  return (
+    <div
+      className={`monument-visual ${className}`}
+      style={{ "--reveal-progress": `${revealPercent}%` } as CSSProperties}
+      aria-label={`${template.name} progress`}
+    >
+      <img className="monument-image grey" src={template.imagePath} alt="" aria-hidden="true" />
+      <img className="monument-image color" src={template.imagePath} alt="" aria-hidden="true" />
+    </div>
+  );
+}
+
+export function MonumentDashboard({
+  state,
+  groupName,
+}: {
+  state: TeamBuildState;
+  groupName: string;
+}) {
+  const template = teamBuildTemplateForTheme(state.themeId);
+  const labels = currentTeamBuildLabels(state);
+  const totalProgress = teamBuildProgressPercent(state);
+
+  return (
+    <div className="monument-dashboard">
+      <p className="home-kicker">{groupName}</p>
+      <h1>{state.name}</h1>
+      <MonumentReveal state={state} template={template} className="home-monument-visual" />
+      <div className="home-progress-copy">
+        <div>
+          <span>{formatWeight(state.totalContributedWeight)}</span>
+          <strong>{totalProgress}%</strong>
+        </div>
+        <div className="team-build-meter" aria-hidden="true">
+          <span style={{ width: `${totalProgress}%`, background: template.accentColor }} />
+        </div>
+        <p>
+          {state.status === "completed" ? "Monument complete" : `${labels.phaseName} - ${labels.subphaseName}`}
+        </p>
+      </div>
+    </div>
+  );
+}
+
+export function CompletedMonumentsView({
+  state,
+  onBack,
+}: {
+  state: TeamBuildState;
+  onBack: () => void;
+}) {
+  const template = teamBuildTemplateForTheme(state.themeId);
+  const completed = state.status === "completed";
+
+  return (
+    <main className="app">
+      <section className="card monument-card">
+        <h1>Completed</h1>
+        <p className="subtitle">Finished monuments will collect here.</p>
+        <div className="completed-monuments-grid">
+          {completed ? (
+            <div className="completed-monument-card">
+              <img src={template.imagePath} alt="" />
+              <strong>{template.name}</strong>
+              <span>{formatWeight(state.totalRequiredWeight)} placed</span>
+            </div>
+          ) : (
+            <div className="empty-monument-state">
+              <strong>No completed monuments yet</strong>
+              <span>{template.name} is currently under construction.</span>
+            </div>
+          )}
+        </div>
+        <button className="primary-button" onClick={onBack}>
+          Back
+        </button>
+      </section>
+    </main>
+  );
+}
+
+export function MonumentMapView({
+  state,
+  onBack,
+}: {
+  state: TeamBuildState;
+  onBack: () => void;
+}) {
+  return (
+    <main className="app">
+      <section className="card monument-card">
+        <h1>Monument Map</h1>
+        <p className="subtitle">Current and future projects</p>
+        <div className="monument-map">
+          {monumentTemplates.map((template, index) => {
+            const isActive = template.id === state.themeId;
+            const isLocked = !isActive;
+
+            return (
+              <div
+                key={template.id}
+                className={isActive ? "monument-map-node active" : "monument-map-node locked"}
+              >
+                <div className="map-node-index">{index + 1}</div>
+                <img src={template.imagePath} alt="" className={isLocked ? "locked-preview" : ""} />
+                <div>
+                  <strong>{template.name}</strong>
+                  <span>{isActive ? "Current project" : "Future monument"}</span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+        <button className="primary-button" onClick={onBack}>
+          Back
+        </button>
+      </section>
+    </main>
+  );
+}
+
 export function TeamBuildProgress({ state, onBack }: TeamBuildProgressProps) {
   const activeTemplate = teamBuildTemplateForTheme(state.themeId);
   const [selectedTemplateId, setSelectedTemplateId] = useState(activeTemplate.id);
@@ -32,7 +164,6 @@ export function TeamBuildProgress({ state, onBack }: TeamBuildProgressProps) {
   const labels = currentTeamBuildLabels(state);
   const totalProgress = selectedIsActive ? teamBuildProgressPercent(state) : 0;
   const currentProgress = selectedIsActive ? currentSubphaseProgressPercent(state) : 0;
-  const revealPercent = progressForTemplate(state, selectedTemplate);
   const remainingForReveal = Math.max(
     0,
     state.currentSubphaseRequiredWeight - state.currentSubphaseContributedWeight
@@ -61,14 +192,7 @@ export function TeamBuildProgress({ state, onBack }: TeamBuildProgressProps) {
           ))}
         </div>
 
-        <div
-          className="monument-visual"
-          style={{ "--reveal-progress": `${revealPercent}%` } as CSSProperties}
-          aria-label={`${selectedTemplate.name} progress`}
-        >
-          <img className="monument-image grey" src={selectedTemplate.imagePath} alt="" aria-hidden="true" />
-          <img className="monument-image color" src={selectedTemplate.imagePath} alt="" aria-hidden="true" />
-        </div>
+        <MonumentReveal state={state} template={selectedTemplate} />
 
         <div className="team-build-progress-panel">
           <div>

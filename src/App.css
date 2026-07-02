@@ -199,6 +199,66 @@ button:disabled {
   margin-top: 12px;
 }
 
+.home-monument-card {
+  padding-top: 24px;
+}
+
+.home-kicker {
+  margin: 0 0 4px;
+  color: #71717a;
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.monument-dashboard h1 {
+  margin-bottom: 14px;
+}
+
+.home-action-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.compact-secondary-button {
+  min-height: 50px;
+  padding: 12px 10px;
+  border-radius: 10px;
+  font-size: 0.98rem;
+}
+
+.home-progress-copy {
+  display: grid;
+  gap: 8px;
+  margin: 0 0 16px;
+  padding: 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #f8fafc;
+  text-align: left;
+}
+
+.home-progress-copy div:first-child {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  color: #52525b;
+  font-size: 0.92rem;
+  font-weight: 800;
+}
+
+.home-progress-copy strong {
+  color: #111827;
+}
+
+.home-progress-copy p {
+  margin: 0;
+  color: #52525b;
+  font-size: 0.9rem;
+  line-height: 1.35;
+}
+
 .team-build-card {
   max-width: 640px;
 }
@@ -241,6 +301,10 @@ button:disabled {
   border: 1px solid #e5e7eb;
   border-radius: 8px;
   background: #e5e7eb;
+}
+
+.home-monument-visual {
+  margin-top: 0;
 }
 
 .monument-image {
@@ -582,6 +646,110 @@ button:disabled {
   height: 100%;
   border-radius: inherit;
   background: #2563eb;
+}
+
+.completed-monuments-grid {
+  display: grid;
+  gap: 12px;
+  margin: 16px 0 20px;
+}
+
+.completed-monument-card,
+.empty-monument-state {
+  display: grid;
+  gap: 8px;
+  padding: 14px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #f8fafc;
+  text-align: left;
+}
+
+.completed-monument-card img {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  border-radius: 6px;
+  object-fit: cover;
+}
+
+.completed-monument-card strong,
+.empty-monument-state strong {
+  color: #111827;
+}
+
+.completed-monument-card span,
+.empty-monument-state span {
+  color: #52525b;
+  font-size: 0.9rem;
+}
+
+.monument-map {
+  display: grid;
+  gap: 12px;
+  margin: 16px 0 20px;
+}
+
+.monument-map-node {
+  display: grid;
+  grid-template-columns: 34px 92px minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+  padding: 10px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #f8fafc;
+  text-align: left;
+}
+
+.monument-map-node.active {
+  border-color: #2563eb;
+  background: #eff6ff;
+}
+
+.map-node-index {
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: #e5e7eb;
+  color: #111827;
+  font-size: 0.85rem;
+  font-weight: 900;
+}
+
+.monument-map-node.active .map-node-index {
+  background: #2563eb;
+  color: white;
+}
+
+.monument-map-node img {
+  width: 92px;
+  aspect-ratio: 16 / 9;
+  border-radius: 6px;
+  object-fit: cover;
+}
+
+.locked-preview {
+  filter: grayscale(1) brightness(0.88);
+}
+
+.monument-map-node strong,
+.monument-map-node span {
+  display: block;
+  min-width: 0;
+}
+
+.monument-map-node strong {
+  color: #111827;
+  font-size: 0.98rem;
+}
+
+.monument-map-node span {
+  margin-top: 3px;
+  color: #52525b;
+  font-size: 0.86rem;
 }
 
 .stepper {

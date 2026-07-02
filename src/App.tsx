@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState, useRef } from "react";
 import "./App.css";
-import { TeamBuildProgress } from "./TeamBuildProgress";
+import { CompletedMonumentsView, MonumentDashboard, MonumentMapView, TeamBuildProgress } from "./TeamBuildProgress";
 import { people, workout, type Person, type Exercise } from "./workoutData";
 import { setActiveWorkoutGroupId } from "./firebase";
 import { loadWorkoutGroupsForUser } from "./groupData";
@@ -312,6 +312,7 @@ function App() {
   const [viewingPast, setViewingPast] = useState(false);
   const [pastSession, setPastSession] = useState<WorkoutSession | null>(null);
   const [viewingTeamBuild, setViewingTeamBuild] = useState(false);
+  const [monumentView, setMonumentView] = useState<"home" | "completed" | "map">("home");
   const [teamBuild, setTeamBuild] = useState<TeamBuildState | null>(null);
   const [warmupSeconds, setWarmupSeconds] = useState(0);
   const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
@@ -387,6 +388,7 @@ function App() {
     setViewingPast(false);
     setPastSession(null);
     setViewingTeamBuild(false);
+    setMonumentView("home");
     setTeamBuild(null);
     setTandemExerciseId("");
     setCompletionError("");
@@ -974,6 +976,24 @@ function App() {
     );
   }
 
+  if (monumentView === "completed" && teamBuild) {
+    return (
+      <CompletedMonumentsView
+        state={teamBuild}
+        onBack={() => setMonumentView("home")}
+      />
+    );
+  }
+
+  if (monumentView === "map" && teamBuild) {
+    return (
+      <MonumentMapView
+        state={teamBuild}
+        onBack={() => setMonumentView("home")}
+      />
+    );
+  }
+
   if (session.complete || viewingPast) {
     const currentSession = viewingPast && pastSession ? pastSession : session;
 
@@ -1134,10 +1154,15 @@ function App() {
   if (!session.started) {
     return (
       <main className="app">
-        <section className="card">
-          <h1>It Takes Two</h1>
-          <p className="subtitle">{selectedGroup?.name ?? "Mike & Victoria"} workout tracker</p>
-          <p style={{ fontSize: "0.75rem", color: "#999", marginTop: "0.5rem" }}>v{APP_VERSION}</p>
+        <section className="card monument-card home-monument-card">
+          {teamBuild ? (
+            <MonumentDashboard state={teamBuild} groupName={selectedGroup?.name ?? "Mike & Victoria"} />
+          ) : (
+            <>
+              <h1>It Takes Two</h1>
+              <p className="subtitle">{selectedGroup?.name ?? "Mike & Victoria"} workout tracker</p>
+            </>
+          )}
 
           <button
             className="primary-button"
@@ -1165,12 +1190,25 @@ function App() {
             {!readyToStart ? "Loading Workout..." : activeRemoteSession ? "Join Workout" : "Start Workout"}
           </button>
 
-          <button
-            className="secondary-button home-secondary-button"
-            disabled={!teamBuild}
-            onClick={() => setViewingTeamBuild(true)}
-          >
-            Show Progress
+          <div className="home-action-row">
+            <button
+              className="secondary-button compact-secondary-button"
+              disabled={!teamBuild}
+              onClick={() => setMonumentView("completed")}
+            >
+              Completed
+            </button>
+            <button
+              className="secondary-button compact-secondary-button"
+              disabled={!teamBuild}
+              onClick={() => setMonumentView("map")}
+            >
+              Map
+            </button>
+          </div>
+
+          <button className="link-button" disabled={!teamBuild} onClick={() => setViewingTeamBuild(true)}>
+            Details
           </button>
 
           {completedWorkouts.length > 0 && (
@@ -1192,6 +1230,7 @@ function App() {
             </button>
           )}
 
+          <p style={{ fontSize: "0.75rem", color: "#999", marginTop: "0.5rem" }}>v{APP_VERSION}</p>
         </section>
       </main>
     );
