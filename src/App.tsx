@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState, useRef } from "react";
 import "./App.css";
+import { TeamBuildProgress } from "./TeamBuildProgress";
 import { people, workout, type Person, type Exercise } from "./workoutData";
 import { setActiveWorkoutGroupId } from "./firebase";
 import { loadWorkoutGroupsForUser } from "./groupData";
@@ -34,6 +35,7 @@ import {
   shouldIgnoreStaleActiveSessionForCompletedLocal,
 } from "./workoutSync";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
+import { loadActiveTeamBuild, type TeamBuildState } from "./teamBuilds";
 
 declare const __APP_VERSION__: string;
 
@@ -107,6 +109,7 @@ const defaultUserProfiles: Record<Person, Record<string, number>> = {
     lat_pulldown: 105,
     bicep_curl_machine: 35,
     tricep_pushdown: 85,
+    seated_dip: 85,
     abs: 50,
     dumbbell_romanian_deadlift: 35,
   },
@@ -117,6 +120,7 @@ const defaultUserProfiles: Record<Person, Record<string, number>> = {
     lat_pulldown: 50,
     bicep_curl_machine: 10,
     tricep_pushdown: 30,
+    seated_dip: 30,
     abs: 0,
     dumbbell_romanian_deadlift: 20,
   },
@@ -307,6 +311,8 @@ function App() {
     useState<Record<Person, BaselineProgressionStrategy>>(defaultBaselineProgressionStrategies);
   const [viewingPast, setViewingPast] = useState(false);
   const [pastSession, setPastSession] = useState<WorkoutSession | null>(null);
+  const [viewingTeamBuild, setViewingTeamBuild] = useState(false);
+  const [teamBuild, setTeamBuild] = useState<TeamBuildState | null>(null);
   const [warmupSeconds, setWarmupSeconds] = useState(0);
   const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
   const [completionError, setCompletionError] = useState("");
@@ -380,6 +386,8 @@ function App() {
     setActiveRemoteSession(null);
     setViewingPast(false);
     setPastSession(null);
+    setViewingTeamBuild(false);
+    setTeamBuild(null);
     setTandemExerciseId("");
     setCompletionError("");
     setCompletedWorkouts([]);
@@ -657,6 +665,17 @@ function App() {
   useEffect(() => {
     if (!selectedGroup) return;
 
+    loadActiveTeamBuild()
+      .then(setTeamBuild)
+      .catch((error) => {
+        console.error("Failed to load team build:", error);
+        setTeamBuild(null);
+      });
+  }, [activeGroupId, selectedGroup, session.complete]);
+
+  useEffect(() => {
+    if (!selectedGroup) return;
+
     loadWorkoutPlan(workout)
       .then((loadedWorkout) => {
         setBaseWorkout(loadedWorkout);
@@ -868,6 +887,10 @@ function App() {
           summary: completedSummary,
           baselineStates: updatedBaselineStates,
           session: preparedCompletedSession,
+          teamBuildContribution: {
+            contributedByUserIds: people,
+            weight: totalWeightLifted,
+          },
         });
         cleanupEventsForNonActiveWorkoutSessions().catch((error) => {
           console.error("Failed to clean up workout events:", error);
@@ -887,6 +910,11 @@ function App() {
             ...current.filter((workout) => workout.id !== completedSessionId),
             { id: completedSessionId, ...completedSummary },
           ]);
+          loadActiveTeamBuild()
+            .then(setTeamBuild)
+            .catch((error) => {
+              console.error("Failed to reload team build:", error);
+            });
         } else {
           setBaselineChangeRows([]);
           setShowBaselineChanges(false);
@@ -934,6 +962,15 @@ function App() {
           </div>
         </section>
       </main>
+    );
+  }
+
+  if (viewingTeamBuild && teamBuild) {
+    return (
+      <TeamBuildProgress
+        state={teamBuild}
+        onBack={() => setViewingTeamBuild(false)}
+      />
     );
   }
 
@@ -1126,6 +1163,14 @@ function App() {
             }}
           >
             {!readyToStart ? "Loading Workout..." : activeRemoteSession ? "Join Workout" : "Start Workout"}
+          </button>
+
+          <button
+            className="secondary-button home-secondary-button"
+            disabled={!teamBuild}
+            onClick={() => setViewingTeamBuild(true)}
+          >
+            Show Progress
           </button>
 
           {completedWorkouts.length > 0 && (

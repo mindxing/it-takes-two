@@ -27,6 +27,7 @@ const defaultGroup = {
   },
   defaultWorkoutPlanId,
   activeSessionId: defaultActiveSessionId,
+  activeTeamBuildId: "theme_park_001",
   active: true,
 };
 

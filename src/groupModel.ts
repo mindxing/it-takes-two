@@ -12,6 +12,7 @@ export type WorkoutGroup = {
   members: Record<string, WorkoutGroupMember>;
   defaultWorkoutPlanId: string;
   activeSessionId: string;
+  activeTeamBuildId?: string;
   active: boolean;
 };
 
@@ -39,13 +40,15 @@ export const defaultWorkoutGroup: WorkoutGroup = {
   },
   defaultWorkoutPlanId,
   activeSessionId: defaultActiveSessionId,
+  activeTeamBuildId: "theme_park_001",
   active: true,
 };
 
 export type GroupScopedCollection =
   | "workoutPlans"
   | "exercises"
-  | "userProfiles";
+  | "userProfiles"
+  | "teamBuilds";
 
 export type TopLevelStateCollection =
   | "currentBaselines"

@@ -26,7 +26,7 @@ export const db = getFirestore(app);
 
 const collectionPrefix = import.meta.env.VITE_FIRESTORE_COLLECTION_PREFIX ?? "";
 let workoutGroupId = import.meta.env.VITE_WORKOUT_GROUP_ID ?? defaultWorkoutGroupId;
-const groupScopedCollections = new Set<string>(["workoutPlans", "exercises", "userProfiles"]);
+const groupScopedCollections = new Set<string>(["workoutPlans", "exercises", "userProfiles", "teamBuilds"]);
 
 export function collectionName(name: string) {
   if (groupScopedCollections.has(name)) {

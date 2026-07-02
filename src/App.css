@@ -195,6 +195,339 @@ button:disabled {
   color: #333;
 }
 
+.home-secondary-button {
+  margin-top: 12px;
+}
+
+.team-build-card {
+  max-width: 640px;
+}
+
+.team-build-visual {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1.45;
+  margin: 18px 0 20px;
+  overflow: hidden;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background:
+    linear-gradient(#e0f2fe 0 48%, #dcfce7 48% 100%);
+}
+
+.park-part {
+  position: absolute;
+  border: 2px solid #9ca3af;
+  background: #d4d4d8;
+  color: #71717a;
+  transition: background 180ms ease, border-color 180ms ease, color 180ms ease, opacity 180ms ease;
+}
+
+.park-part.locked {
+  opacity: 0.72;
+  filter: grayscale(1);
+}
+
+.park-part.active {
+  border-color: #2563eb;
+  background: #bfdbfe;
+  color: #1e3a8a;
+  filter: grayscale(0.25);
+}
+
+.park-part.complete {
+  border-color: #334155;
+  background: #f59e0b;
+  color: #111827;
+  filter: none;
+}
+
+.entrance-path {
+  left: 8%;
+  bottom: 0;
+  width: 20%;
+  height: 38%;
+  border-bottom: none;
+  transform: skewX(-10deg);
+}
+
+.entrance-path.complete {
+  background: #facc15;
+}
+
+.ticket-booth {
+  left: 6%;
+  bottom: 34%;
+  width: 12%;
+  height: 18%;
+  border-radius: 4px 4px 0 0;
+}
+
+.entry-arch {
+  left: 4%;
+  bottom: 50%;
+  width: 28%;
+  height: 26%;
+  border-width: 8px 8px 0;
+  border-radius: 48% 48% 0 0;
+  background: transparent;
+}
+
+.entry-arch.complete {
+  border-color: #ef4444;
+  background: transparent;
+}
+
+.park-sign,
+.team-banner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0;
+}
+
+.park-sign {
+  left: 12%;
+  bottom: 68%;
+  width: 12%;
+  height: 8%;
+  border-radius: 4px;
+}
+
+.park-sign.complete {
+  background: #fde047;
+}
+
+.gate-lights {
+  left: 8%;
+  bottom: 80%;
+  width: 20%;
+  height: 4%;
+  border-radius: 999px;
+}
+
+.gate-lights.complete,
+.prizes-lights.complete,
+.wheel-lights.complete {
+  background: #fef08a;
+  box-shadow: 0 0 18px rgba(250, 204, 21, 0.78);
+}
+
+.team-banner {
+  left: 10%;
+  bottom: 58%;
+  width: 16%;
+  height: 7%;
+  border-radius: 2px;
+}
+
+.team-banner.complete {
+  background: #38bdf8;
+}
+
+.central-path {
+  left: 30%;
+  bottom: 0;
+  width: 33%;
+  height: 28%;
+  border-bottom: none;
+  transform: skewX(8deg);
+}
+
+.central-path.complete {
+  background: #fdba74;
+}
+
+.benches {
+  left: 35%;
+  bottom: 30%;
+  width: 24%;
+  height: 6%;
+  border-radius: 999px;
+}
+
+.benches.complete {
+  background: #a16207;
+}
+
+.food-stand,
+.game-booth {
+  bottom: 40%;
+  width: 16%;
+  height: 18%;
+  border-radius: 4px 4px 0 0;
+}
+
+.food-stand {
+  left: 34%;
+}
+
+.food-stand.complete {
+  background: #fb923c;
+}
+
+.stand-awning {
+  left: 33%;
+  bottom: 57%;
+  width: 18%;
+  height: 6%;
+  border-radius: 6px 6px 0 0;
+}
+
+.stand-awning.complete {
+  background: repeating-linear-gradient(90deg, #ef4444 0 12px, #f8fafc 12px 24px);
+}
+
+.game-booth {
+  left: 52%;
+}
+
+.game-booth.complete {
+  background: #22c55e;
+}
+
+.prizes-lights {
+  left: 53%;
+  bottom: 61%;
+  width: 14%;
+  height: 5%;
+  border-radius: 999px;
+}
+
+.wheel-footings {
+  right: 10%;
+  bottom: 10%;
+  width: 26%;
+  height: 5%;
+  border-radius: 999px;
+}
+
+.wheel-footings.complete,
+.loading-platform.complete {
+  background: #94a3b8;
+}
+
+.loading-platform {
+  right: 15%;
+  bottom: 16%;
+  width: 16%;
+  height: 7%;
+  border-radius: 4px;
+}
+
+.wheel-frame {
+  right: 9%;
+  bottom: 23%;
+  width: 26%;
+  aspect-ratio: 1;
+  border-width: 8px;
+  border-radius: 50%;
+  background: transparent;
+}
+
+.wheel-frame::before,
+.wheel-frame::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 5%;
+  width: 2px;
+  height: 90%;
+  background: currentColor;
+  transform: translateX(-50%);
+}
+
+.wheel-frame::after {
+  transform: translateX(-50%) rotate(90deg);
+}
+
+.wheel-frame.complete {
+  border-color: #0f766e;
+  color: #0f766e;
+  background: transparent;
+}
+
+.gondolas {
+  right: 12%;
+  bottom: 28%;
+  width: 20%;
+  height: 20%;
+  border-style: dashed;
+  border-radius: 50%;
+  background: transparent;
+}
+
+.gondolas.complete {
+  border-color: #db2777;
+  background: transparent;
+}
+
+.wheel-lights {
+  right: 7%;
+  bottom: 49%;
+  width: 30%;
+  height: 4%;
+  border-radius: 999px;
+}
+
+.wheel-complete {
+  right: 18%;
+  bottom: 44%;
+  width: 8%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+}
+
+.wheel-complete.complete {
+  background: #f472b6;
+}
+
+.team-build-progress-panel {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 18px;
+  padding: 14px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #f8fafc;
+  text-align: left;
+}
+
+.team-build-progress-panel div:not(.team-build-meter) {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  color: #52525b;
+  font-size: 0.9rem;
+}
+
+.team-build-progress-panel strong {
+  color: #111827;
+}
+
+.team-build-progress-panel p {
+  margin: 0;
+  color: #52525b;
+  font-size: 0.9rem;
+  line-height: 1.35;
+}
+
+.team-build-meter {
+  height: 10px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #e5e7eb;
+}
+
+.team-build-meter span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: #2563eb;
+}
+
 .stepper {
   display: grid;
   grid-template-columns: 1fr 56px 90px 56px;

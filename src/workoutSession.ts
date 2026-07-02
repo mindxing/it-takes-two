@@ -15,6 +15,12 @@ import {
   type UserBaselines,
   type UserWeights,
 } from "./baselineProgression";
+import {
+  applyWeightToTeamBuild,
+  createInitialTeamBuildState,
+  defaultTeamBuildId,
+  parseTeamBuildState,
+} from "./teamBuildModel";
 
 export type {
   BaselineProgressionStrategy,
@@ -478,15 +484,22 @@ export async function finalizeCompletedWorkout({
   summary,
   baselineStates,
   session,
+  teamBuildContribution,
 }: {
   sessionId: string;
   summary: CompletedWorkoutSummary;
   baselineStates: Record<string, UserBaselines>;
   session: unknown;
+  teamBuildContribution?: {
+    contributedByUserIds: string[];
+    weight: number;
+  };
 }) {
   const groupId = activeWorkoutGroupId();
   const completedRef = doc(db, collectionName("completedWorkouts"), sessionId);
   const sessionRef = doc(db, collectionName("workoutSessions"), activeWorkoutSessionDocumentId());
+  const teamBuildRef = doc(db, collectionName("teamBuilds"), defaultTeamBuildId);
+  const teamBuildContributionRef = doc(db, collectionName("teamBuilds"), defaultTeamBuildId, "contributions", sessionId);
   const now = new Date().toISOString();
   const preparedSession = removeUndefinedValues({
     ...(session as Record<string, unknown>),
@@ -500,6 +513,12 @@ export async function finalizeCompletedWorkout({
   return runTransaction(db, async (transaction) => {
     const completedSnapshot = await transaction.get(completedRef);
     const sessionSnapshot = await transaction.get(sessionRef);
+    const teamBuildSnapshot = teamBuildContribution
+      ? await transaction.get(teamBuildRef)
+      : null;
+    const teamBuildContributionSnapshot = teamBuildContribution
+      ? await transaction.get(teamBuildContributionRef)
+      : null;
     const sequence = (sessionSnapshot.exists() ? Number(sessionSnapshot.data().eventSequence ?? 0) : 0) + 1;
 
     if (completedSnapshot.exists()) {
@@ -521,6 +540,31 @@ export async function finalizeCompletedWorkout({
         memberId: person,
         baselines: prepareStoredBaselines(baselines),
         updatedAt: now,
+      });
+    }
+
+    if (teamBuildContribution && !teamBuildContributionSnapshot?.exists()) {
+      const currentTeamBuild = teamBuildSnapshot?.exists()
+        ? parseTeamBuildState(teamBuildSnapshot.data())
+        : null;
+      const initialTeamBuild = currentTeamBuild ?? createInitialTeamBuildState({ groupId, now });
+      const updatedTeamBuild = applyWeightToTeamBuild({
+        state: initialTeamBuild,
+        weight: teamBuildContribution.weight,
+        now,
+      });
+
+      transaction.set(teamBuildRef, updatedTeamBuild);
+      transaction.set(teamBuildContributionRef, {
+        id: sessionId,
+        workoutSessionId: sessionId,
+        completedWorkoutId: sessionId,
+        contributedByUserIds: teamBuildContribution.contributedByUserIds,
+        weight: Math.max(0, Math.floor(teamBuildContribution.weight)),
+        appliedToMajorId: initialTeamBuild.currentMajorId,
+        appliedToPhaseId: initialTeamBuild.currentPhaseId,
+        appliedToSubphaseId: initialTeamBuild.currentSubphaseId,
+        createdAt: now,
       });
     }
 
