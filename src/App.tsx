@@ -1398,64 +1398,86 @@ function App() {
           </p>
         )}
 
-        <div className="stepper">
-          <span>Reps</span>
-          <button
-            onClick={() => {
-              updateStepperSession((currentSession) => {
-                const workoutForSession = currentSession.reorderedWorkout || baseWorkout;
-                return adjustCurrentReps(currentSession, workoutForSession, -1);
-              });
-            }}
-          >
-            -
-          </button>
-          <strong>{session.currentReps}</strong>
-          <button
-            onClick={() => {
-              updateStepperSession((currentSession) => {
-                const workoutForSession = currentSession.reorderedWorkout || baseWorkout;
-                return adjustCurrentReps(currentSession, workoutForSession, 1);
-              });
-            }}
-          >
-            +
-          </button>
-        </div>
-
-        <div className="stepper">
-          <span>Weight</span>
-          <button
-            onClick={() => {
-              updateStepperSession((currentSession) => {
-                const workoutForSession = currentSession.reorderedWorkout || baseWorkout;
-                return adjustCurrentWeight({
-                  session: currentSession,
-                  workout: workoutForSession,
-                  userStrategies,
-                  delta: -currentWeightStep,
-                });
-              });
-            }}
-          >
-            -
-          </button>
-          <strong>{session.currentWeight} lbs</strong>
-          <button
-            onClick={() => {
-              updateStepperSession((currentSession) => {
-                const workoutForSession = currentSession.reorderedWorkout || baseWorkout;
-                return adjustCurrentWeight({
-                  session: currentSession,
-                  workout: workoutForSession,
-                  userStrategies,
-                  delta: currentWeightStep,
-                });
-              });
-            }}
-          >
-            +
-          </button>
+        <div className="active-lift-stage">
+          {currentPerson && (
+            <img
+              className={`active-worker-avatar active-worker-avatar-${currentPerson.toLowerCase()}`}
+              src={currentPerson === "Victoria" ? "/avatar-victoria.png?v=20260702-alpha" : "/avatar-mike.png?v=20260702-alpha"}
+              alt=""
+              aria-hidden="true"
+            />
+          )}
+          <div className="compact-lift-control" aria-label={`${session.currentWeight} pounds by ${session.currentReps} reps`}>
+            <div className="lift-control-column">
+              <button
+                type="button"
+                aria-label={`Increase weight by ${formatWeightStep(currentWeightStep)} pounds`}
+                onClick={() => {
+                  updateStepperSession((currentSession) => {
+                    const workoutForSession = currentSession.reorderedWorkout || baseWorkout;
+                    return adjustCurrentWeight({
+                      session: currentSession,
+                      workout: workoutForSession,
+                      userStrategies,
+                      delta: currentWeightStep,
+                    });
+                  });
+                }}
+              >
+                +
+              </button>
+              <strong>
+                {session.currentWeight}<span>lbs</span>
+              </strong>
+              <button
+                type="button"
+                aria-label={`Decrease weight by ${formatWeightStep(currentWeightStep)} pounds`}
+                onClick={() => {
+                  updateStepperSession((currentSession) => {
+                    const workoutForSession = currentSession.reorderedWorkout || baseWorkout;
+                    return adjustCurrentWeight({
+                      session: currentSession,
+                      workout: workoutForSession,
+                      userStrategies,
+                      delta: -currentWeightStep,
+                    });
+                  });
+                }}
+              >
+                -
+              </button>
+            </div>
+            <span className="lift-times" aria-hidden="true">x</span>
+            <div className="lift-control-column">
+              <button
+                type="button"
+                aria-label="Increase reps"
+                onClick={() => {
+                  updateStepperSession((currentSession) => {
+                    const workoutForSession = currentSession.reorderedWorkout || baseWorkout;
+                    return adjustCurrentReps(currentSession, workoutForSession, 1);
+                  });
+                }}
+              >
+                +
+              </button>
+              <strong>
+                {session.currentReps}<span>reps</span>
+              </strong>
+              <button
+                type="button"
+                aria-label="Decrease reps"
+                onClick={() => {
+                  updateStepperSession((currentSession) => {
+                    const workoutForSession = currentSession.reorderedWorkout || baseWorkout;
+                    return adjustCurrentReps(currentSession, workoutForSession, -1);
+                  });
+                }}
+              >
+                -
+              </button>
+            </div>
+          </div>
         </div>
         {showWeightStepPicker && (
           <div className="modal-backdrop" role="presentation" onClick={() => setShowWeightStepPicker(false)}>
@@ -1486,7 +1508,7 @@ function App() {
           </div>
         )}
 
-        <div className="button-row">
+        <div className="button-row workout-action-row">
           <button className="secondary-button" disabled={pendingAction !== null} onClick={() => recordSet("skipped")}>
             Skip
           </button>

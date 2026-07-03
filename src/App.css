@@ -1169,6 +1169,117 @@ button:disabled {
   font-size: 1rem;
 }
 
+.active-lift-stage {
+  position: relative;
+  min-height: 280px;
+  margin: 8px 0 18px;
+  overflow: hidden;
+  border: 4px solid #3f210f;
+  border-radius: 16px;
+  background:
+    linear-gradient(180deg, rgba(255, 247, 237, 0.8), rgba(254, 243, 199, 0.64)),
+    radial-gradient(circle at 72% 18%, rgba(20, 184, 166, 0.22), transparent 30%),
+    repeating-linear-gradient(90deg, rgba(120, 53, 15, 0.07) 0 2px, transparent 2px 18px);
+}
+
+.active-worker-avatar {
+  position: absolute;
+  bottom: -116px;
+  z-index: 1;
+  width: min(112vw, 500px);
+  max-width: none;
+  pointer-events: none;
+  filter: drop-shadow(0 10px 16px rgba(17, 24, 39, 0.3));
+}
+
+.active-worker-avatar-victoria {
+  left: -150px;
+}
+
+.active-worker-avatar-mike {
+  right: -150px;
+}
+
+.compact-lift-control {
+  position: absolute;
+  top: 48%;
+  left: 50%;
+  z-index: 2;
+  width: min(92%, 330px);
+  display: grid;
+  grid-template-columns: minmax(98px, 1fr) auto minmax(78px, 0.8fr);
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  transform: translate(-50%, -50%);
+  border: 4px solid #3f210f;
+  border-radius: 14px;
+  background: rgba(255, 247, 237, 0.9);
+  box-shadow:
+    0 7px 0 rgba(69, 26, 3, 0.65),
+    0 18px 24px rgba(17, 24, 39, 0.24);
+}
+
+.lift-control-column {
+  display: grid;
+  grid-template-rows: 42px auto 42px;
+  align-items: center;
+  justify-items: center;
+  gap: 4px;
+}
+
+.lift-control-column button {
+  width: 42px;
+  height: 42px;
+  padding: 0;
+  border: 3px solid #3f210f;
+  border-radius: 50%;
+  background: #fbbf24;
+  color: #3f210f;
+  font-size: 1.45rem;
+  font-weight: 900;
+  line-height: 1;
+  cursor: pointer;
+  box-shadow: inset 0 -4px 0 rgba(146, 64, 14, 0.24);
+}
+
+.lift-control-column strong {
+  min-width: 0;
+  color: #3f210f;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: clamp(1.45rem, 8vw, 2rem);
+  line-height: 1;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.lift-control-column strong span {
+  margin-left: 2px;
+  font-size: 0.55em;
+  text-transform: uppercase;
+}
+
+.lift-times {
+  color: #0f766e;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: clamp(1.6rem, 8vw, 2.2rem);
+  font-weight: 900;
+  text-shadow: 0 1px 0 rgba(255, 237, 213, 0.7);
+}
+
+.workout-action-row {
+  display: grid;
+  grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr);
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.workout-action-row .primary-button,
+.workout-action-row .secondary-button {
+  padding: 14px 12px;
+  font-size: 1rem;
+}
+
 .summary-card {
   max-width: 680px;
 }
@@ -1358,31 +1469,43 @@ button:disabled {
     align-items: flex-start;
   }
 
-.card {
-  width: 100%;
-  max-width: 440px;
-  position: relative;
-  overflow: hidden;
-  padding: 30px;
-  border: 4px solid #111827;
-  border-radius: 18px;
-  background:
-    linear-gradient(180deg, rgba(255, 247, 237, 0.95), rgba(254, 243, 199, 0.92)),
-    repeating-linear-gradient(90deg, rgba(120, 53, 15, 0.07) 0 2px, transparent 2px 18px);
-  color: #111827;
-  box-shadow:
-    0 10px 0 rgba(69, 26, 3, 0.65),
-    0 24px 42px rgba(17, 24, 39, 0.28);
-  text-align: center;
-}
+  .card {
+    padding: 22px;
+  }
  
   .button-row {
     flex-direction: column;
   }
 
+  .workout-action-row {
+    grid-template-columns: minmax(0, 0.82fr) minmax(0, 1.18fr);
+  }
+
   .stepper {
     grid-template-columns: 1fr 48px 80px 48px;
     font-size: 1.05rem;
+  }
+
+  .active-lift-stage {
+    min-height: 270px;
+  }
+
+  .active-worker-avatar {
+    bottom: -104px;
+    width: 118vw;
+  }
+
+  .active-worker-avatar-victoria {
+    left: -142px;
+  }
+
+  .active-worker-avatar-mike {
+    right: -142px;
+  }
+
+  .compact-lift-control {
+    top: 46%;
+    width: min(94%, 310px);
   }
 }
 
