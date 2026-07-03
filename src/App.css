@@ -1189,19 +1189,20 @@ button:disabled {
   z-index: 1;
   justify-self: center;
   align-self: end;
-  width: min(86vw, 340px);
+  width: auto;
+  height: min(74vw, 292px);
   max-width: none;
-  margin: 0 0 -12px -66px;
+  margin: 0 0 -10px -28px;
   pointer-events: none;
   filter: drop-shadow(0 10px 16px rgba(17, 24, 39, 0.3));
 }
 
 .active-worker-avatar-victoria {
-  margin-left: -76px;
+  margin-left: -34px;
 }
 
 .active-worker-avatar-mike {
-  margin-left: -66px;
+  margin-left: -30px;
 }
 
 .compact-lift-control {
@@ -1258,7 +1259,7 @@ button:disabled {
   min-width: 0;
   color: #3f210f;
   font-family: Georgia, "Times New Roman", serif;
-  font-size: clamp(1.2rem, 5.2vw, 1.64rem);
+  font-size: clamp(1.28rem, 5.7vw, 1.72rem);
   line-height: 1;
   text-align: center;
   white-space: nowrap;
@@ -1279,15 +1280,15 @@ button:disabled {
 }
 
 .lift-step-button {
-  width: 44px;
-  height: 44px;
+  width: 38px;
+  height: 38px;
   margin-top: 0;
   border-width: 3px;
 }
 
 .lift-step-button img {
-  width: 28px;
-  height: 28px;
+  width: 24px;
+  height: 24px;
 }
 
 .workout-action-row {
@@ -1510,7 +1511,7 @@ button:disabled {
   }
 
   .active-lift-stage {
-    min-height: 304px;
+    min-height: 316px;
     grid-template-columns: minmax(0, 1fr) minmax(146px, 0.72fr);
     gap: 8px;
     padding: 12px 8px 8px;
@@ -1518,16 +1519,17 @@ button:disabled {
 
   .active-worker-avatar {
     bottom: auto;
-    width: min(88vw, 330px);
-    margin-bottom: -10px;
+    width: auto;
+    height: min(76vw, 292px);
+    margin-bottom: -8px;
   }
 
   .active-worker-avatar-victoria {
-    margin-left: -78px;
+    margin-left: -32px;
   }
 
   .active-worker-avatar-mike {
-    margin-left: -68px;
+    margin-left: -28px;
   }
 
   .compact-lift-control {
@@ -1552,12 +1554,17 @@ button:disabled {
   }
 
   .lift-control-column strong {
-    font-size: clamp(1.08rem, 5.2vw, 1.42rem);
+    font-size: clamp(1.14rem, 5.7vw, 1.5rem);
   }
 
   .lift-step-button {
-    width: 42px;
-    height: 42px;
+    width: 36px;
+    height: 36px;
+  }
+
+  .lift-step-button img {
+    width: 22px;
+    height: 22px;
   }
 }
 
