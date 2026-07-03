@@ -20,6 +20,12 @@ function formatWeight(weight: number) {
 }
 
 const visibleProgressThumbCount = 3;
+const progressThumbCenterIndex = Math.floor(visibleProgressThumbCount / 2);
+
+function centeredProgressThumbOffset(index: number) {
+  const maxThumbOffset = Math.max(0, monumentTemplates.length - visibleProgressThumbCount);
+  return Math.min(maxThumbOffset, Math.max(0, index - progressThumbCenterIndex));
+}
 
 function progressForTemplate(state: TeamBuildState, template: TeamBuildTemplate, activeThemeId = state.themeId) {
   const activeTemplateIndex = monumentTemplates.findIndex((item) => item.id === activeThemeId);
@@ -193,6 +199,13 @@ export function TeamBuildProgress({ state, onBack }: TeamBuildProgressProps) {
   const canScrollRight = thumbOffset + visibleThumbs.length < monumentTemplates.length;
   const maxThumbOffset = Math.max(0, monumentTemplates.length - visibleProgressThumbCount);
 
+  function selectTemplateAtIndex(index: number) {
+    const template = monumentTemplates[index];
+    if (!template) return;
+    setSelectedTemplateId(template.id);
+    setThumbOffset(centeredProgressThumbOffset(index));
+  }
+
   return (
     <main className="app">
       <section className="card monument-card progress-medallion-card">
@@ -270,7 +283,7 @@ export function TeamBuildProgress({ state, onBack }: TeamBuildProgressProps) {
                     template.id === displayActiveTemplate.id ? "current" : "",
                   ].filter(Boolean).join(" ")}
                   type="button"
-                  onClick={() => setSelectedTemplateId(template.id)}
+                  onClick={() => selectTemplateAtIndex(templateIndex)}
                   aria-label={isUnlocked ? template.name : `${template.name} locked`}
                 >
                   {isUnlocked ? (
