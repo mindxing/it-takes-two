@@ -1170,9 +1170,9 @@ button:disabled {
 .active-lift-stage {
   min-height: 314px;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(112px, 0.58fr);
+  grid-template-columns: minmax(0, 1fr) minmax(148px, 0.72fr);
   align-items: end;
-  gap: 10px;
+  gap: 8px;
   margin: 8px 0 18px;
   padding: 14px 12px 8px;
   overflow: hidden;
@@ -1189,19 +1189,19 @@ button:disabled {
   z-index: 1;
   justify-self: center;
   align-self: end;
-  width: min(62vw, 238px);
+  width: min(86vw, 340px);
   max-width: none;
-  margin: 0 0 -10px -16px;
+  margin: 0 0 -12px -66px;
   pointer-events: none;
   filter: drop-shadow(0 10px 16px rgba(17, 24, 39, 0.3));
 }
 
 .active-worker-avatar-victoria {
-  margin-left: -24px;
+  margin-left: -76px;
 }
 
 .active-worker-avatar-mike {
-  margin-left: -12px;
+  margin-left: -66px;
 }
 
 .compact-lift-control {
@@ -1212,7 +1212,7 @@ button:disabled {
   display: grid;
   justify-items: center;
   gap: 8px;
-  min-width: 0;
+  min-width: 148px;
   padding: 12px 8px 10px;
   border: 4px solid #3f210f;
   border-radius: 14px;
@@ -1225,9 +1225,9 @@ button:disabled {
 .lift-control-main {
   width: 100%;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  grid-template-columns: minmax(58px, 1.18fr) auto minmax(48px, 1fr);
   align-items: center;
-  gap: 4px;
+  gap: 5px;
 }
 
 .lift-control-column {
@@ -1258,15 +1258,15 @@ button:disabled {
   min-width: 0;
   color: #3f210f;
   font-family: Georgia, "Times New Roman", serif;
-  font-size: clamp(1.32rem, 6.4vw, 1.75rem);
+  font-size: clamp(1.2rem, 5.2vw, 1.64rem);
   line-height: 1;
   text-align: center;
   white-space: nowrap;
 }
 
 .lift-control-column strong span {
-  margin-left: 1px;
-  font-size: 0.42em;
+  margin-left: 0;
+  font-size: 0.4em;
   text-transform: uppercase;
 }
 
@@ -1511,31 +1511,33 @@ button:disabled {
 
   .active-lift-stage {
     min-height: 304px;
-    grid-template-columns: minmax(0, 1fr) minmax(112px, 0.62fr);
+    grid-template-columns: minmax(0, 1fr) minmax(146px, 0.72fr);
     gap: 8px;
-    padding: 12px 10px 8px;
+    padding: 12px 8px 8px;
   }
 
   .active-worker-avatar {
     bottom: auto;
-    width: min(60vw, 220px);
-    margin-bottom: -8px;
+    width: min(88vw, 330px);
+    margin-bottom: -10px;
   }
 
   .active-worker-avatar-victoria {
-    margin-left: -22px;
+    margin-left: -78px;
   }
 
   .active-worker-avatar-mike {
-    margin-left: -12px;
+    margin-left: -68px;
   }
 
   .compact-lift-control {
-    padding: 10px 6px 8px;
+    min-width: 146px;
+    padding: 10px 7px 8px;
   }
 
   .lift-control-main {
-    gap: 2px;
+    grid-template-columns: minmax(56px, 1.18fr) auto minmax(46px, 1fr);
+    gap: 5px;
   }
 
   .lift-control-column {
@@ -1550,7 +1552,7 @@ button:disabled {
   }
 
   .lift-control-column strong {
-    font-size: clamp(1.18rem, 6vw, 1.52rem);
+    font-size: clamp(1.08rem, 5.2vw, 1.42rem);
   }
 
   .lift-step-button {
