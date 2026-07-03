@@ -44,11 +44,9 @@ h1 {
 }
 
 .exercise-title-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 40px;
-  align-items: center;
-  gap: 8px;
+  display: block;
   margin-bottom: 8px;
+  text-align: center;
 }
 
 .exercise-title-row h1 {
@@ -1170,9 +1168,13 @@ button:disabled {
 }
 
 .active-lift-stage {
-  position: relative;
-  min-height: 280px;
+  min-height: 314px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(112px, 0.58fr);
+  align-items: end;
+  gap: 10px;
   margin: 8px 0 18px;
+  padding: 14px 12px 8px;
   overflow: hidden;
   border: 4px solid #3f210f;
   border-radius: 16px;
@@ -1183,35 +1185,35 @@ button:disabled {
 }
 
 .active-worker-avatar {
-  position: absolute;
-  bottom: -116px;
+  position: relative;
   z-index: 1;
-  width: min(112vw, 500px);
+  justify-self: center;
+  align-self: end;
+  width: min(62vw, 238px);
   max-width: none;
+  margin: 0 0 -10px -16px;
   pointer-events: none;
   filter: drop-shadow(0 10px 16px rgba(17, 24, 39, 0.3));
 }
 
 .active-worker-avatar-victoria {
-  left: -150px;
+  margin-left: -24px;
 }
 
 .active-worker-avatar-mike {
-  right: -150px;
+  margin-left: -12px;
 }
 
 .compact-lift-control {
-  position: absolute;
-  top: 48%;
-  left: 50%;
+  position: relative;
   z-index: 2;
-  width: min(92%, 330px);
+  justify-self: stretch;
+  align-self: center;
   display: grid;
-  grid-template-columns: minmax(98px, 1fr) auto minmax(78px, 0.8fr);
-  align-items: center;
+  justify-items: center;
   gap: 8px;
-  padding: 10px 12px;
-  transform: translate(-50%, -50%);
+  min-width: 0;
+  padding: 12px 8px 10px;
   border: 4px solid #3f210f;
   border-radius: 14px;
   background: rgba(255, 247, 237, 0.9);
@@ -1220,23 +1222,32 @@ button:disabled {
     0 18px 24px rgba(17, 24, 39, 0.24);
 }
 
-.lift-control-column {
+.lift-control-main {
+  width: 100%;
   display: grid;
-  grid-template-rows: 42px auto 42px;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   align-items: center;
-  justify-items: center;
   gap: 4px;
 }
 
+.lift-control-column {
+  display: grid;
+  grid-template-rows: 34px auto 34px;
+  align-items: center;
+  justify-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
 .lift-control-column button {
-  width: 42px;
-  height: 42px;
+  width: 34px;
+  height: 34px;
   padding: 0;
   border: 3px solid #3f210f;
   border-radius: 50%;
   background: #fbbf24;
   color: #3f210f;
-  font-size: 1.45rem;
+  font-size: 1.12rem;
   font-weight: 900;
   line-height: 1;
   cursor: pointer;
@@ -1247,24 +1258,36 @@ button:disabled {
   min-width: 0;
   color: #3f210f;
   font-family: Georgia, "Times New Roman", serif;
-  font-size: clamp(1.45rem, 8vw, 2rem);
+  font-size: clamp(1.32rem, 6.4vw, 1.75rem);
   line-height: 1;
   text-align: center;
   white-space: nowrap;
 }
 
 .lift-control-column strong span {
-  margin-left: 2px;
-  font-size: 0.55em;
+  margin-left: 1px;
+  font-size: 0.42em;
   text-transform: uppercase;
 }
 
 .lift-times {
   color: #0f766e;
   font-family: Georgia, "Times New Roman", serif;
-  font-size: clamp(1.6rem, 8vw, 2.2rem);
+  font-size: clamp(1.3rem, 6vw, 1.8rem);
   font-weight: 900;
   text-shadow: 0 1px 0 rgba(255, 237, 213, 0.7);
+}
+
+.lift-step-button {
+  width: 44px;
+  height: 44px;
+  margin-top: 0;
+  border-width: 3px;
+}
+
+.lift-step-button img {
+  width: 28px;
+  height: 28px;
 }
 
 .workout-action-row {
@@ -1487,25 +1510,52 @@ button:disabled {
   }
 
   .active-lift-stage {
-    min-height: 270px;
+    min-height: 304px;
+    grid-template-columns: minmax(0, 1fr) minmax(112px, 0.62fr);
+    gap: 8px;
+    padding: 12px 10px 8px;
   }
 
   .active-worker-avatar {
-    bottom: -104px;
-    width: 118vw;
+    bottom: auto;
+    width: min(60vw, 220px);
+    margin-bottom: -8px;
   }
 
   .active-worker-avatar-victoria {
-    left: -142px;
+    margin-left: -22px;
   }
 
   .active-worker-avatar-mike {
-    right: -142px;
+    margin-left: -12px;
   }
 
   .compact-lift-control {
-    top: 46%;
-    width: min(94%, 310px);
+    padding: 10px 6px 8px;
+  }
+
+  .lift-control-main {
+    gap: 2px;
+  }
+
+  .lift-control-column {
+    grid-template-rows: 32px auto 32px;
+    gap: 5px;
+  }
+
+  .lift-control-column button {
+    width: 32px;
+    height: 32px;
+    font-size: 1.05rem;
+  }
+
+  .lift-control-column strong {
+    font-size: clamp(1.18rem, 6vw, 1.52rem);
+  }
+
+  .lift-step-button {
+    width: 42px;
+    height: 42px;
   }
 }
 

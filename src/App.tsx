@@ -1380,14 +1380,6 @@ function App() {
         )}
         <div className="exercise-title-row">
           <h1>{exercise.name}</h1>
-          <button
-            className="weight-step-icon-button"
-            type="button"
-            aria-label={`Weight step: ${formatWeightStep(currentWeightStep)} lb`}
-            onClick={() => setShowWeightStepPicker(true)}
-          >
-            <img src="/weight-step-icon.svg" alt="" aria-hidden="true" />
-          </button>
         </div>
         <p className={session.tandem ? "subtitle primary-target-line" : "subtitle"}>
           {currentPerson} — Set {session.currentSet} of {exercise.sets}
@@ -1408,75 +1400,85 @@ function App() {
             />
           )}
           <div className="compact-lift-control" aria-label={`${session.currentWeight} pounds by ${session.currentReps} reps`}>
-            <div className="lift-control-column">
-              <button
-                type="button"
-                aria-label={`Increase weight by ${formatWeightStep(currentWeightStep)} pounds`}
-                onClick={() => {
-                  updateStepperSession((currentSession) => {
-                    const workoutForSession = currentSession.reorderedWorkout || baseWorkout;
-                    return adjustCurrentWeight({
-                      session: currentSession,
-                      workout: workoutForSession,
-                      userStrategies,
-                      delta: currentWeightStep,
+            <div className="lift-control-main">
+              <div className="lift-control-column">
+                <button
+                  type="button"
+                  aria-label={`Increase weight by ${formatWeightStep(currentWeightStep)} pounds`}
+                  onClick={() => {
+                    updateStepperSession((currentSession) => {
+                      const workoutForSession = currentSession.reorderedWorkout || baseWorkout;
+                      return adjustCurrentWeight({
+                        session: currentSession,
+                        workout: workoutForSession,
+                        userStrategies,
+                        delta: currentWeightStep,
+                      });
                     });
-                  });
-                }}
-              >
-                +
-              </button>
-              <strong>
-                {session.currentWeight}<span>lbs</span>
-              </strong>
-              <button
-                type="button"
-                aria-label={`Decrease weight by ${formatWeightStep(currentWeightStep)} pounds`}
-                onClick={() => {
-                  updateStepperSession((currentSession) => {
-                    const workoutForSession = currentSession.reorderedWorkout || baseWorkout;
-                    return adjustCurrentWeight({
-                      session: currentSession,
-                      workout: workoutForSession,
-                      userStrategies,
-                      delta: -currentWeightStep,
+                  }}
+                >
+                  +
+                </button>
+                <strong>
+                  {session.currentWeight}<span>lbs</span>
+                </strong>
+                <button
+                  type="button"
+                  aria-label={`Decrease weight by ${formatWeightStep(currentWeightStep)} pounds`}
+                  onClick={() => {
+                    updateStepperSession((currentSession) => {
+                      const workoutForSession = currentSession.reorderedWorkout || baseWorkout;
+                      return adjustCurrentWeight({
+                        session: currentSession,
+                        workout: workoutForSession,
+                        userStrategies,
+                        delta: -currentWeightStep,
+                      });
                     });
-                  });
-                }}
-              >
-                -
-              </button>
+                  }}
+                >
+                  -
+                </button>
+              </div>
+              <span className="lift-times" aria-hidden="true">x</span>
+              <div className="lift-control-column">
+                <button
+                  type="button"
+                  aria-label="Increase reps"
+                  onClick={() => {
+                    updateStepperSession((currentSession) => {
+                      const workoutForSession = currentSession.reorderedWorkout || baseWorkout;
+                      return adjustCurrentReps(currentSession, workoutForSession, 1);
+                    });
+                  }}
+                >
+                  +
+                </button>
+                <strong>
+                  {session.currentReps}<span>reps</span>
+                </strong>
+                <button
+                  type="button"
+                  aria-label="Decrease reps"
+                  onClick={() => {
+                    updateStepperSession((currentSession) => {
+                      const workoutForSession = currentSession.reorderedWorkout || baseWorkout;
+                      return adjustCurrentReps(currentSession, workoutForSession, -1);
+                    });
+                  }}
+                >
+                  -
+                </button>
+              </div>
             </div>
-            <span className="lift-times" aria-hidden="true">x</span>
-            <div className="lift-control-column">
-              <button
-                type="button"
-                aria-label="Increase reps"
-                onClick={() => {
-                  updateStepperSession((currentSession) => {
-                    const workoutForSession = currentSession.reorderedWorkout || baseWorkout;
-                    return adjustCurrentReps(currentSession, workoutForSession, 1);
-                  });
-                }}
-              >
-                +
-              </button>
-              <strong>
-                {session.currentReps}<span>reps</span>
-              </strong>
-              <button
-                type="button"
-                aria-label="Decrease reps"
-                onClick={() => {
-                  updateStepperSession((currentSession) => {
-                    const workoutForSession = currentSession.reorderedWorkout || baseWorkout;
-                    return adjustCurrentReps(currentSession, workoutForSession, -1);
-                  });
-                }}
-              >
-                -
-              </button>
-            </div>
+            <button
+              className="weight-step-icon-button lift-step-button"
+              type="button"
+              aria-label={`Weight step: ${formatWeightStep(currentWeightStep)} lb`}
+              onClick={() => setShowWeightStepPicker(true)}
+            >
+              <img src="/weight-step-icon.svg" alt="" aria-hidden="true" />
+            </button>
           </div>
         </div>
         {showWeightStepPicker && (
@@ -1513,7 +1515,7 @@ function App() {
             Skip
           </button>
           <button className="primary-button" disabled={pendingAction !== null} onClick={() => recordSet("completed")}>
-            {pendingAction === "done" ? "Saving..." : "Done / Next"}
+            {pendingAction === "done" ? "Saving..." : "Next"}
           </button>
         </div>
 
