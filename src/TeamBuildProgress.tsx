@@ -19,11 +19,11 @@ function formatWeight(weight: number) {
   return `${Math.max(0, Math.round(weight)).toLocaleString()} lb`;
 }
 
-function progressForTemplate(state: TeamBuildState, template: TeamBuildTemplate) {
-  const activeTemplateIndex = monumentTemplates.findIndex((item) => item.id === state.themeId);
+function progressForTemplate(state: TeamBuildState, template: TeamBuildTemplate, activeThemeId = state.themeId) {
+  const activeTemplateIndex = monumentTemplates.findIndex((item) => item.id === activeThemeId);
   const templateIndex = monumentTemplates.findIndex((item) => item.id === template.id);
   if (templateIndex >= 0 && activeTemplateIndex >= 0 && templateIndex < activeTemplateIndex) return 100;
-  if (template.id !== state.themeId) return 0;
+  if (template.id !== activeThemeId) return 0;
   return teamBuildProgressPercent(state);
 }
 
@@ -31,12 +31,14 @@ function MonumentReveal({
   state,
   template,
   className = "",
+  activeThemeId,
 }: {
   state: TeamBuildState;
   template: TeamBuildTemplate;
   className?: string;
+  activeThemeId?: string;
 }) {
-  const revealPercent = progressForTemplate(state, template);
+  const revealPercent = progressForTemplate(state, template, activeThemeId);
 
   return (
     <div
@@ -169,16 +171,16 @@ export function MonumentMapView({
 }
 
 export function TeamBuildProgress({ state, onBack }: TeamBuildProgressProps) {
-  const activeTemplate = teamBuildTemplateForTheme(state.themeId);
-  const [selectedTemplateId, setSelectedTemplateId] = useState(activeTemplate.id);
+  const displayActiveTemplate = monumentTemplates[1] ?? teamBuildTemplateForTheme(state.themeId);
+  const [selectedTemplateId, setSelectedTemplateId] = useState(displayActiveTemplate.id);
   const [thumbOffset, setThumbOffset] = useState(0);
   const selectedTemplate = teamBuildTemplateForTheme(selectedTemplateId);
-  const activeTemplateIndex = monumentTemplates.findIndex((template) => template.id === activeTemplate.id);
+  const activeTemplateIndex = monumentTemplates.findIndex((template) => template.id === displayActiveTemplate.id);
   const selectedTemplateIndex = monumentTemplates.findIndex((template) => template.id === selectedTemplate.id);
-  const selectedIsActive = selectedTemplate.id === state.themeId;
+  const selectedIsActive = selectedTemplate.id === displayActiveTemplate.id;
   const selectedIsUnlocked = selectedTemplateIndex <= activeTemplateIndex;
   const labels = currentTeamBuildLabels(state);
-  const totalProgress = selectedIsActive ? teamBuildProgressPercent(state) : 0;
+  const totalProgress = selectedIsUnlocked ? progressForTemplate(state, selectedTemplate, displayActiveTemplate.id) : 0;
   const currentProgress = selectedIsActive ? currentSubphaseProgressPercent(state) : 0;
   const remainingForReveal = Math.max(
     0,
@@ -204,9 +206,38 @@ export function TeamBuildProgress({ state, onBack }: TeamBuildProgressProps) {
 
         <div className={selectedIsUnlocked ? "progress-main-medallion" : "progress-main-medallion locked"}>
           {selectedIsUnlocked ? (
-            <MonumentReveal state={state} template={selectedTemplate} className="progress-main-visual" />
+            <MonumentReveal
+              state={state}
+              template={selectedTemplate}
+              className="progress-main-visual"
+              activeThemeId={displayActiveTemplate.id}
+            />
           ) : (
             <span aria-label={`${selectedTemplate.name} locked`}>?</span>
+          )}
+        </div>
+
+        <div className={selectedIsUnlocked ? "team-build-progress-panel" : "team-build-progress-panel locked"}>
+          <div>
+            <span>Total progress</span>
+            <strong>{selectedIsUnlocked ? `${totalProgress}%` : "Locked"}</strong>
+          </div>
+          <div className="team-build-meter" aria-hidden="true">
+            <span style={{ width: selectedIsUnlocked ? `${totalProgress}%` : "0%", background: selectedTemplate.accentColor }} />
+          </div>
+          <div>
+            <span>Next section</span>
+            <strong>{selectedIsActive ? `${currentProgress}%` : selectedIsUnlocked ? "Complete" : "Hidden"}</strong>
+          </div>
+          {selectedIsActive && state.status !== "completed" && (
+            <p>
+              {formatWeight(remainingForReveal)} until {labels.subphaseName.toLowerCase()}.
+            </p>
+          )}
+          {selectedIsActive && (
+            <p>
+              {formatWeight(state.totalContributedWeight)} placed of {formatWeight(state.totalRequiredWeight)}.
+            </p>
           )}
         </div>
 
@@ -233,13 +264,22 @@ export function TeamBuildProgress({ state, onBack }: TeamBuildProgressProps) {
                     "progress-thumb-medallion",
                     isSelected ? "selected" : "",
                     isUnlocked ? "unlocked" : "locked",
-                    template.id === activeTemplate.id ? "current" : "",
+                    template.id === displayActiveTemplate.id ? "current" : "",
                   ].filter(Boolean).join(" ")}
                   type="button"
                   onClick={() => setSelectedTemplateId(template.id)}
                   aria-label={isUnlocked ? template.name : `${template.name} locked`}
                 >
-                  {isUnlocked ? <img src={template.imagePath} alt="" /> : <span>?</span>}
+                  {isUnlocked ? (
+                    <MonumentReveal
+                      state={state}
+                      template={template}
+                      className="progress-thumb-visual"
+                      activeThemeId={displayActiveTemplate.id}
+                    />
+                  ) : (
+                    <span>?</span>
+                  )}
                 </button>
               );
             })}
@@ -253,30 +293,6 @@ export function TeamBuildProgress({ state, onBack }: TeamBuildProgressProps) {
           >
             ›
           </button>
-        </div>
-
-        <div className={selectedIsUnlocked ? "team-build-progress-panel" : "team-build-progress-panel locked"}>
-          <div>
-            <span>Total progress</span>
-            <strong>{selectedIsUnlocked ? `${totalProgress}%` : "Locked"}</strong>
-          </div>
-          <div className="team-build-meter" aria-hidden="true">
-            <span style={{ width: selectedIsUnlocked ? `${totalProgress}%` : "0%", background: selectedTemplate.accentColor }} />
-          </div>
-          <div>
-            <span>Next section</span>
-            <strong>{selectedIsActive ? `${currentProgress}%` : selectedIsUnlocked ? "Complete" : "Hidden"}</strong>
-          </div>
-          {selectedIsActive && state.status !== "completed" && (
-            <p>
-              {formatWeight(remainingForReveal)} until {labels.subphaseName.toLowerCase()}.
-            </p>
-          )}
-          {selectedIsActive && (
-            <p>
-              {formatWeight(state.totalContributedWeight)} placed of {formatWeight(state.totalRequiredWeight)}.
-            </p>
-          )}
         </div>
 
         <button className="primary-button" onClick={onBack}>
