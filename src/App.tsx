@@ -1394,7 +1394,7 @@ function App() {
           {currentPerson && (
             <img
               className={`active-worker-avatar active-worker-avatar-${currentPerson.toLowerCase()}`}
-              src={currentPerson === "Victoria" ? "/avatar-victoria.png?v=20260702-alpha" : "/avatar-mike.png?v=20260702-alpha"}
+              src={currentPerson === "Victoria" ? "/avatar-victoria.png?v=20260703-clean" : "/avatar-mike.png?v=20260703-clean"}
               alt=""
               aria-hidden="true"
             />
