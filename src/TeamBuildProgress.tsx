@@ -20,6 +20,9 @@ function formatWeight(weight: number) {
 }
 
 function progressForTemplate(state: TeamBuildState, template: TeamBuildTemplate) {
+  const activeTemplateIndex = monumentTemplates.findIndex((item) => item.id === state.themeId);
+  const templateIndex = monumentTemplates.findIndex((item) => item.id === template.id);
+  if (templateIndex >= 0 && activeTemplateIndex >= 0 && templateIndex < activeTemplateIndex) return 100;
   if (template.id !== state.themeId) return 0;
   return teamBuildProgressPercent(state);
 }
@@ -168,8 +171,12 @@ export function MonumentMapView({
 export function TeamBuildProgress({ state, onBack }: TeamBuildProgressProps) {
   const activeTemplate = teamBuildTemplateForTheme(state.themeId);
   const [selectedTemplateId, setSelectedTemplateId] = useState(activeTemplate.id);
+  const [thumbOffset, setThumbOffset] = useState(0);
   const selectedTemplate = teamBuildTemplateForTheme(selectedTemplateId);
+  const activeTemplateIndex = monumentTemplates.findIndex((template) => template.id === activeTemplate.id);
+  const selectedTemplateIndex = monumentTemplates.findIndex((template) => template.id === selectedTemplate.id);
   const selectedIsActive = selectedTemplate.id === state.themeId;
+  const selectedIsUnlocked = selectedTemplateIndex <= activeTemplateIndex;
   const labels = currentTeamBuildLabels(state);
   const totalProgress = selectedIsActive ? teamBuildProgressPercent(state) : 0;
   const currentProgress = selectedIsActive ? currentSubphaseProgressPercent(state) : 0;
@@ -177,77 +184,88 @@ export function TeamBuildProgress({ state, onBack }: TeamBuildProgressProps) {
     0,
     state.currentSubphaseRequiredWeight - state.currentSubphaseContributedWeight
   );
+  const visibleThumbs = monumentTemplates.slice(thumbOffset, thumbOffset + 5);
+  const canScrollLeft = thumbOffset > 0;
+  const canScrollRight = thumbOffset + visibleThumbs.length < monumentTemplates.length;
 
   return (
     <main className="app">
-      <section className="card monument-card progress-orbit-card">
-        <div className="progress-orbit" aria-label="Monument options">
-          <div className="orbit-side left">
-            {monumentTemplates.filter((template) => template.id !== selectedTemplate.id).slice(0, 2).map((template) => (
-              <button
-                key={template.id}
-                className="orbit-thumb"
-                type="button"
-                onClick={() => setSelectedTemplateId(template.id)}
-                aria-label={template.name}
-              >
-                <img src={template.imagePath} alt="" />
-              </button>
-            ))}
-          </div>
-
-          <div className="orbit-current">
-            <MonumentReveal state={state} template={selectedTemplate} className="orbit-current-visual" />
-          </div>
-
-          <div className="orbit-side right">
-            {monumentTemplates.filter((template) => template.id !== selectedTemplate.id).slice().reverse().slice(0, 2).map((template) => (
-              <button
-                key={template.id}
-                className="orbit-thumb"
-                type="button"
-                onClick={() => setSelectedTemplateId(template.id)}
-                aria-label={template.name}
-              >
-                <img src={template.imagePath} alt="" />
-              </button>
-            ))}
-          </div>
-        </div>
-
+      <section className="card monument-card progress-medallion-card">
         <div className="progress-copy">
           <h1>{selectedTemplate.name}</h1>
           <p>
-            {selectedIsActive
-              ? state.status === "completed" ? "Complete" : `${labels.phaseName} - ${labels.subphaseName}`
+            {selectedIsUnlocked
+              ? selectedIsActive
+                ? state.status === "completed" ? "Complete" : `${labels.phaseName} - ${labels.subphaseName}`
+                : "Completed monument"
               : selectedTemplate.description}
           </p>
         </div>
 
-        <div className="monument-tabs compact-tabs" aria-label="Monument options">
-          {monumentTemplates.map((template) => (
-            <button
-              key={template.id}
-              className={template.id === selectedTemplate.id ? "monument-tab selected" : "monument-tab"}
-              type="button"
-              onClick={() => setSelectedTemplateId(template.id)}
-            >
-              {template.shortName}
-            </button>
-          ))}
+        <div className={selectedIsUnlocked ? "progress-main-medallion" : "progress-main-medallion locked"}>
+          {selectedIsUnlocked ? (
+            <MonumentReveal state={state} template={selectedTemplate} className="progress-main-visual" />
+          ) : (
+            <span aria-label={`${selectedTemplate.name} locked`}>?</span>
+          )}
         </div>
 
-        <div className="team-build-progress-panel">
+        <div className="progress-thumb-carousel" aria-label="Monument timeline">
+          <button
+            className="progress-thumb-arrow"
+            type="button"
+            disabled={!canScrollLeft}
+            onClick={() => setThumbOffset((offset) => Math.max(0, offset - 1))}
+            aria-label="Scroll monuments left"
+          >
+            ‹
+          </button>
+          <div className="progress-thumb-list">
+            {visibleThumbs.map((template) => {
+              const templateIndex = monumentTemplates.findIndex((item) => item.id === template.id);
+              const isUnlocked = templateIndex <= activeTemplateIndex;
+              const isSelected = template.id === selectedTemplate.id;
+
+              return (
+                <button
+                  key={template.id}
+                  className={[
+                    "progress-thumb-medallion",
+                    isSelected ? "selected" : "",
+                    isUnlocked ? "unlocked" : "locked",
+                    template.id === activeTemplate.id ? "current" : "",
+                  ].filter(Boolean).join(" ")}
+                  type="button"
+                  onClick={() => setSelectedTemplateId(template.id)}
+                  aria-label={isUnlocked ? template.name : `${template.name} locked`}
+                >
+                  {isUnlocked ? <img src={template.imagePath} alt="" /> : <span>?</span>}
+                </button>
+              );
+            })}
+          </div>
+          <button
+            className="progress-thumb-arrow"
+            type="button"
+            disabled={!canScrollRight}
+            onClick={() => setThumbOffset((offset) => Math.min(monumentTemplates.length - 1, offset + 1))}
+            aria-label="Scroll monuments right"
+          >
+            ›
+          </button>
+        </div>
+
+        <div className={selectedIsUnlocked ? "team-build-progress-panel" : "team-build-progress-panel locked"}>
           <div>
             <span>Total progress</span>
-            <strong>{totalProgress}%</strong>
+            <strong>{selectedIsUnlocked ? `${totalProgress}%` : "Locked"}</strong>
           </div>
           <div className="team-build-meter" aria-hidden="true">
-            <span style={{ width: `${totalProgress}%`, background: selectedTemplate.accentColor }} />
+            <span style={{ width: selectedIsUnlocked ? `${totalProgress}%` : "0%", background: selectedTemplate.accentColor }} />
           </div>
           <div>
             <span>Next section</span>
-            <strong>{selectedIsActive ? `${currentProgress}%` : "Preview"}</strong>
+            <strong>{selectedIsActive ? `${currentProgress}%` : selectedIsUnlocked ? "Complete" : "Hidden"}</strong>
           </div>
           {selectedIsActive && state.status !== "completed" && (
             <p>

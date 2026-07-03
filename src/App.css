@@ -599,6 +599,11 @@ button:disabled {
   padding-top: 42px;
 }
 
+.progress-medallion-card {
+  min-height: 620px;
+  padding-top: 28px;
+}
+
 .progress-orbit {
   display: grid;
   grid-template-columns: 1fr minmax(132px, 190px) 1fr;
@@ -689,6 +694,111 @@ button:disabled {
   font-size: 1rem;
   font-weight: 700;
   line-height: 1.35;
+}
+
+.progress-main-medallion {
+  width: min(72vw, 280px);
+  aspect-ratio: 1;
+  margin: 18px auto 28px;
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+  border: 5px solid #111827;
+  border-radius: 50%;
+  background: #fffaf0;
+  box-shadow: 0 8px 0 rgba(69, 26, 3, 0.28);
+}
+
+.progress-main-medallion.locked {
+  background: #a1a1aa;
+  color: #111827;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 4rem;
+  font-weight: 900;
+}
+
+.progress-main-visual {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+}
+
+.progress-main-visual .monument-image {
+  object-fit: cover;
+}
+
+.progress-thumb-carousel {
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr) 32px;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 20px;
+}
+
+.progress-thumb-list {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(54px, 1fr);
+  justify-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.progress-thumb-arrow {
+  width: 32px;
+  height: 56px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: #111827;
+  font-size: 3.2rem;
+  font-weight: 900;
+  line-height: 0.8;
+  cursor: pointer;
+}
+
+.progress-thumb-arrow:disabled {
+  opacity: 0.25;
+}
+
+.progress-thumb-medallion {
+  width: clamp(52px, 14vw, 68px);
+  aspect-ratio: 1;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  padding: 0;
+  border: 4px solid #111827;
+  border-radius: 50%;
+  background: #fffaf0;
+  cursor: pointer;
+  box-shadow: 0 4px 0 rgba(69, 26, 3, 0.25);
+}
+
+.progress-thumb-medallion.selected {
+  outline: 4px solid #f59e0b;
+  outline-offset: 3px;
+}
+
+.progress-thumb-medallion.current {
+  border-color: #0f766e;
+}
+
+.progress-thumb-medallion img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.progress-thumb-medallion.locked {
+  background: #a1a1aa;
+  color: #111827;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 1.45rem;
+  font-weight: 900;
 }
 
 .compact-tabs {
