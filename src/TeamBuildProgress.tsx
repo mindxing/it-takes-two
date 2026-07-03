@@ -19,6 +19,8 @@ function formatWeight(weight: number) {
   return `${Math.max(0, Math.round(weight)).toLocaleString()} lb`;
 }
 
+const visibleProgressThumbCount = 3;
+
 function progressForTemplate(state: TeamBuildState, template: TeamBuildTemplate, activeThemeId = state.themeId) {
   const activeTemplateIndex = monumentTemplates.findIndex((item) => item.id === activeThemeId);
   const templateIndex = monumentTemplates.findIndex((item) => item.id === template.id);
@@ -186,9 +188,10 @@ export function TeamBuildProgress({ state, onBack }: TeamBuildProgressProps) {
     0,
     state.currentSubphaseRequiredWeight - state.currentSubphaseContributedWeight
   );
-  const visibleThumbs = monumentTemplates.slice(thumbOffset, thumbOffset + 5);
+  const visibleThumbs = monumentTemplates.slice(thumbOffset, thumbOffset + visibleProgressThumbCount);
   const canScrollLeft = thumbOffset > 0;
   const canScrollRight = thumbOffset + visibleThumbs.length < monumentTemplates.length;
+  const maxThumbOffset = Math.max(0, monumentTemplates.length - visibleProgressThumbCount);
 
   return (
     <main className="app">
@@ -288,7 +291,7 @@ export function TeamBuildProgress({ state, onBack }: TeamBuildProgressProps) {
             className="progress-thumb-arrow"
             type="button"
             disabled={!canScrollRight}
-            onClick={() => setThumbOffset((offset) => Math.min(monumentTemplates.length - 1, offset + 1))}
+            onClick={() => setThumbOffset((offset) => Math.min(maxThumbOffset, offset + 1))}
             aria-label="Scroll monuments right"
           >
             ›
