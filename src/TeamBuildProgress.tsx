@@ -95,7 +95,7 @@ export function MonumentDashboard({
         </svg>
       </h1>
       <MonumentReveal state={state} template={template} className="home-monument-visual" />
-      <img className="workout-avatar avatar-victoria" src="/avatar-victoria-v2.png?v=20260703-v2" alt="" aria-hidden="true" />
+      <img className="workout-avatar avatar-victoria" src="/avatar-victoria-v3.png?v=20260703-v3" alt="" aria-hidden="true" />
       <img className="workout-avatar avatar-mike" src="/avatar-mike.png?v=20260703-clean" alt="" aria-hidden="true" />
     </div>
   );
