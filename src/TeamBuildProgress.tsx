@@ -179,7 +179,7 @@ export function MonumentMapView({
 }
 
 export function TeamBuildProgress({ state, onBack }: TeamBuildProgressProps) {
-  const displayActiveTemplate = monumentTemplates[1] ?? teamBuildTemplateForTheme(state.themeId);
+  const displayActiveTemplate = teamBuildTemplateForTheme(state.themeId);
   const [selectedTemplateId, setSelectedTemplateId] = useState(displayActiveTemplate.id);
   const [thumbOffset, setThumbOffset] = useState(0);
   const selectedTemplate = teamBuildTemplateForTheme(selectedTemplateId);
