@@ -30,3 +30,6 @@ dist-ssr
 .agents/
 skills-lock.json
 
+.codex-remote-attachments
+
+
