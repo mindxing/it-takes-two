@@ -1,8 +1,10 @@
 import { people, type Exercise, type Person } from "./workoutData.ts";
 import type { SetResult } from "./workoutSession.ts";
+import { defaultWeightStep, plannedWeight, plannedWeightOffset, normalizedWeightStep } from "./weightSteps.ts";
 
 export type SetStatus = "completed" | "skipped";
 export type WeightStrategy = "pyramid" | "straight";
+export type UserWeightSteps = Record<Person, Record<string, number>>;
 
 export type ActiveMovement = NonNullable<Exercise["movements"]>[number];
 
@@ -80,6 +82,20 @@ export function getProfileWeight(
   return profiles[person][activeWeightKey(exercise, movement)] ?? profiles[person][exerciseKey(exercise)] ?? profiles[person][exercise.name] ?? 0;
 }
 
+export function getProfileWeightStep(
+  weightSteps: Partial<Record<Person, Record<string, number>>> | undefined,
+  person: Person,
+  exercise: Exercise,
+  movement: ActiveMovement | null = null
+) {
+  return normalizedWeightStep(
+    weightSteps?.[person]?.[activeWeightKey(exercise, movement)] ??
+    weightSteps?.[person]?.[exerciseKey(exercise)] ??
+    weightSteps?.[person]?.[exercise.name] ??
+    defaultWeightStep
+  );
+}
+
 export function getPersonExerciseValue(
   values: Record<string, Partial<Record<Person, number>>> | undefined,
   exercise: Exercise,
@@ -125,6 +141,7 @@ export function chooseFirstPerson({
   workout,
   userProfiles,
   userStrategies,
+  userWeightSteps,
   firstPerson,
   tandemExerciseId,
 }: {
@@ -132,6 +149,7 @@ export function chooseFirstPerson({
   workout: Exercise[];
   userProfiles: Record<Person, Record<string, number>>;
   userStrategies: Record<Person, WeightStrategy>;
+  userWeightSteps?: Partial<UserWeightSteps>;
   firstPerson: Person;
   tandemExerciseId?: string | null;
 }): WorkoutSession {
@@ -140,6 +158,8 @@ export function chooseFirstPerson({
   const order = firstPerson === "Victoria" ? ["Victoria", "Mike"] as Person[] : ["Mike", "Victoria"] as Person[];
   const firstMovement = activeMovement(exercise, 0);
   const target = getSetPlan(exercise, firstMovement)[0];
+  const baseWeight = getProfileWeight(userProfiles, firstPerson, exercise, firstMovement);
+  const weightStep = getProfileWeightStep(userWeightSteps, firstPerson, exercise, firstMovement);
 
   return {
     ...prepared.session,
@@ -149,12 +169,14 @@ export function chooseFirstPerson({
     currentMovementIndex: 0,
     currentSet: 1,
     currentReps: target.reps,
-    currentWeight: getProfileWeight(userProfiles, firstPerson, exercise, firstMovement) + (userStrategies[firstPerson] === "pyramid" ? target.weightOffset : 0),
+    currentWeight: userStrategies[firstPerson] === "pyramid"
+      ? plannedWeight(baseWeight, target.weightOffset, weightStep)
+      : baseWeight,
     adjustedBaselines: {
       ...session.adjustedBaselines,
       [activeWeightKey(exercise, firstMovement)]: {
         ...(session.adjustedBaselines?.[activeWeightKey(exercise, firstMovement)] || {}),
-        [firstPerson]: getProfileWeight(userProfiles, firstPerson, exercise, firstMovement),
+        [firstPerson]: baseWeight,
       },
     },
     adjustedRepBaselines: {
@@ -254,11 +276,13 @@ export function adjustCurrentWeight({
   session,
   workout,
   userStrategies,
+  userWeightSteps,
   delta,
 }: {
   session: WorkoutSession;
   workout: Exercise[];
   userStrategies: Record<Person, WeightStrategy>;
+  userWeightSteps?: Partial<UserWeightSteps>;
   delta: number;
 }): WorkoutSession {
   const currentExercise = workout[session.exerciseIndex];
@@ -271,9 +295,10 @@ export function adjustCurrentWeight({
 
   const newWeight = Math.max(0, session.currentWeight + delta);
   const target = getSetPlan(currentExercise, currentMovement)[session.currentSet - 1];
+  const weightStep = getProfileWeightStep(userWeightSteps, currentSetPerson, currentExercise, currentMovement);
   const adjustedBaseline =
     newWeight -
-    (userStrategies[currentSetPerson] === "pyramid" ? target.weightOffset : 0);
+    (userStrategies[currentSetPerson] === "pyramid" ? plannedWeightOffset(target.weightOffset, weightStep) : 0);
 
   return {
     ...session,
@@ -296,6 +321,7 @@ function prepareNextSetValues({
   setNumber,
   userProfiles,
   userStrategies,
+  userWeightSteps,
 }: {
   session: WorkoutSession;
   exercise: Exercise;
@@ -304,6 +330,7 @@ function prepareNextSetValues({
   setNumber: number;
   userProfiles: Record<Person, Record<string, number>>;
   userStrategies: Record<Person, WeightStrategy>;
+  userWeightSteps?: Partial<UserWeightSteps>;
 }) {
   const setPlan = getSetPlan(exercise, movement);
   const target = setPlan[setNumber - 1];
@@ -322,14 +349,17 @@ function prepareNextSetValues({
       }
       : session.adjustedRepBaselines;
 
+  const baseWeight =
+    getPersonExerciseValue(session.adjustedBaselines, exercise, person, movement) ??
+    getProfileWeight(userProfiles, person, exercise, movement) ??
+    0;
+  const weightStep = getProfileWeightStep(userWeightSteps, person, exercise, movement);
+
   return {
     reps: nextReps,
-    weight:
-      (
-        getPersonExerciseValue(session.adjustedBaselines, exercise, person, movement) ??
-        getProfileWeight(userProfiles, person, exercise, movement) ??
-        0
-      ) + (userStrategies[person] === "pyramid" ? target.weightOffset : 0),
+    weight: userStrategies[person] === "pyramid"
+      ? plannedWeight(baseWeight, target.weightOffset, weightStep)
+      : baseWeight,
     adjustedRepBaselines: nextAdjustedRepBaselines,
   };
 }
@@ -339,6 +369,7 @@ export function recordSetAndAdvance({
   workout,
   userProfiles,
   userStrategies,
+  userWeightSteps,
   status,
   completedAt,
   createSessionId,
@@ -347,6 +378,7 @@ export function recordSetAndAdvance({
   workout: Exercise[];
   userProfiles: Record<Person, Record<string, number>>;
   userStrategies: Record<Person, WeightStrategy>;
+  userWeightSteps?: Partial<UserWeightSteps>;
   status: SetStatus;
   completedAt: string;
   createSessionId: () => string;
@@ -387,6 +419,7 @@ export function recordSetAndAdvance({
       setNumber: session.currentSet,
       userProfiles,
       userStrategies,
+      userWeightSteps,
     });
 
     return {
@@ -404,6 +437,7 @@ export function recordSetAndAdvance({
       workout,
       userProfiles,
       userStrategies,
+      userWeightSteps,
       completedAt,
       createSessionId,
     });
@@ -420,6 +454,7 @@ export function recordSetAndAdvance({
       setNumber: session.currentSet,
       userProfiles,
       userStrategies,
+      userWeightSteps,
     });
 
     return {
@@ -444,6 +479,7 @@ export function recordSetAndAdvance({
       setNumber: nextSet,
       userProfiles,
       userStrategies,
+      userWeightSteps,
     });
 
     return {
@@ -634,11 +670,13 @@ export function tandemCompanionPrompt({
   workout,
   userProfiles,
   userStrategies,
+  userWeightSteps,
 }: {
   session: WorkoutSession;
   workout: Exercise[];
   userProfiles: Record<Person, Record<string, number>>;
   userStrategies: Record<Person, WeightStrategy>;
+  userWeightSteps?: Partial<UserWeightSteps>;
 }) {
   if (!session.tandem) return null;
 
@@ -662,6 +700,7 @@ export function tandemCompanionPrompt({
     setNumber: companionPosition.setNumber,
     userProfiles,
     userStrategies,
+    userWeightSteps,
   });
 
   return {
@@ -681,11 +720,13 @@ export function switchToTandemCompanion({
   workout,
   userProfiles,
   userStrategies,
+  userWeightSteps,
 }: {
   session: WorkoutSession;
   workout: Exercise[];
   userProfiles: Record<Person, Record<string, number>>;
   userStrategies: Record<Person, WeightStrategy>;
+  userWeightSteps?: Partial<UserWeightSteps>;
 }): WorkoutSession {
   if (!session.tandem) return session;
 
@@ -709,6 +750,7 @@ export function switchToTandemCompanion({
     setNumber: companionPosition.setNumber,
     userProfiles,
     userStrategies,
+    userWeightSteps,
   });
 
   return {
@@ -741,6 +783,7 @@ function advanceTandemTurn({
   workout,
   userProfiles,
   userStrategies,
+  userWeightSteps,
   completedAt,
   createSessionId,
 }: {
@@ -748,6 +791,7 @@ function advanceTandemTurn({
   workout: Exercise[];
   userProfiles: Record<Person, Record<string, number>>;
   userStrategies: Record<Person, WeightStrategy>;
+  userWeightSteps?: Partial<UserWeightSteps>;
   completedAt: string;
   createSessionId: () => string;
 }) {
@@ -765,6 +809,7 @@ function advanceTandemTurn({
       setNumber: nextPosition.setNumber,
       userProfiles,
       userStrategies,
+      userWeightSteps,
     });
 
     return {

@@ -24,6 +24,7 @@ import {
   switchToTandemCompanion,
   tandemCompanionPrompt,
   type SetStatus,
+  type UserWeightSteps,
   type WeightStrategy,
   type WorkoutSession,
 } from "./workoutEngine";
@@ -146,6 +147,21 @@ function weightsFromBaselineStates(baselines: Record<Person, UserBaselines>) {
       Object.entries(baselines.Victoria).map(([exerciseId, baseline]) => [exerciseId, baseline.weight])
     ),
   } as Record<Person, Record<string, number>>;
+}
+
+function weightStepsFromBaselineStates(baselines: Record<Person, UserBaselines>) {
+  return {
+    Mike: Object.fromEntries(
+      Object.entries(baselines.Mike)
+        .filter(([, baseline]) => typeof baseline.weightStep === "number" && baseline.weightStep > 0)
+        .map(([exerciseId, baseline]) => [exerciseId, baseline.weightStep as number])
+    ),
+    Victoria: Object.fromEntries(
+      Object.entries(baselines.Victoria)
+        .filter(([, baseline]) => typeof baseline.weightStep === "number" && baseline.weightStep > 0)
+        .map(([exerciseId, baseline]) => [exerciseId, baseline.weightStep as number])
+    ),
+  } satisfies Partial<UserWeightSteps>;
 }
 
 const defaultUserStrategies: Record<Person, WeightStrategy> = {
@@ -356,12 +372,14 @@ function App() {
   const currentWeightStep = currentPerson && currentWeightKey
     ? userBaselineStates[currentPerson]?.[currentWeightKey]?.weightStep ?? 5
     : 5;
+  const userWeightSteps = weightStepsFromBaselineStates(userBaselineStates);
   const tandemCompanion = session.tandem
     ? tandemCompanionPrompt({
       session,
       workout: effectiveWorkout,
       userProfiles,
       userStrategies,
+      userWeightSteps,
     })
     : null;
   const availableTandemExercises = session.started && !session.firstPerson && session.exerciseIndex > 0
@@ -582,6 +600,7 @@ function App() {
       workout: workoutForSession,
       userProfiles,
       userStrategies,
+      userWeightSteps,
     });
 
     if (nextSession !== sessionRef.current) {
@@ -820,6 +839,7 @@ function App() {
       workout: effectiveWorkout,
       userProfiles,
       userStrategies,
+      userWeightSteps,
       status,
       completedAt,
       createSessionId,
@@ -840,7 +860,8 @@ function App() {
         newSession.results,
         effectiveWorkout,
         userProfiles,
-        userStrategies
+        userStrategies,
+        userBaselineStates
       );
       const completedSessionId = newSession.sessionId ?? createSessionId();
       newSession.sessionId = completedSessionId;
@@ -1297,6 +1318,7 @@ function App() {
                   workout: effectiveWorkout,
                   userProfiles,
                   userStrategies,
+                  userWeightSteps,
                   firstPerson: "Victoria",
                   tandemExerciseId,
                 });
@@ -1318,6 +1340,7 @@ function App() {
                   workout: effectiveWorkout,
                   userProfiles,
                   userStrategies,
+                  userWeightSteps,
                   firstPerson: "Mike",
                   tandemExerciseId,
                 });
@@ -1412,6 +1435,7 @@ function App() {
                         session: currentSession,
                         workout: workoutForSession,
                         userStrategies,
+                        userWeightSteps,
                         delta: currentWeightStep,
                       });
                     });
@@ -1432,6 +1456,7 @@ function App() {
                         session: currentSession,
                         workout: workoutForSession,
                         userStrategies,
+                        userWeightSteps,
                         delta: -currentWeightStep,
                       });
                     });

@@ -21,6 +21,7 @@ import {
   defaultTeamBuildId,
   parseTeamBuildState,
 } from "./teamBuildModel";
+import { plannedWeight } from "./weightSteps";
 
 export type {
   BaselineProgressionStrategy,
@@ -681,7 +682,8 @@ export function calculateExerciseOutcomes(
   results: SetResult[],
   workout: Exercise[],
   userProfiles: Record<string, Record<string, number>>,
-  userStrategies: Record<Person, "pyramid" | "straight">
+  userStrategies: Record<Person, "pyramid" | "straight">,
+  userBaselineStates?: Record<string, UserBaselines>
 ): ExerciseOutcomes {
   const outcomes: ExerciseOutcomes = {};
 
@@ -769,28 +771,31 @@ export function calculateExerciseOutcomes(
             ? setPlan[0].reps
             : planned.reps;
 
-        const plannedWeight =
-          baseWeight +
-          (strategy === "pyramid"
-            ? planned.weightOffset
-            : 0);
+        const plannedTargetWeight =
+          strategy === "pyramid"
+            ? plannedWeight(
+              baseWeight,
+              planned.weightOffset,
+              userBaselineStates?.[person]?.[outcomeKey]?.weightStep
+            )
+            : baseWeight;
 
         // Compare actual vs expected
         if (
           result.reps === plannedReps &&
-          result.weight === plannedWeight
+          result.weight === plannedTargetWeight
         ) {
           // Exact match
           continue;
         } else if (
           result.reps > plannedReps ||
-          result.weight > plannedWeight
+          result.weight > plannedTargetWeight
         ) {
           hasUp = true;
           isExact = false;
         } else if (
           result.reps < plannedReps - 1 ||
-          result.weight < plannedWeight - 5
+          result.weight < plannedTargetWeight - 5
         ) {
           // Significant decrease
           hasDown = true;

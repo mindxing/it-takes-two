@@ -275,7 +275,7 @@ function calculate({
     currentProfiles: { Mike: { leg_press: 100 } },
     currentBaselineStates: { Mike: { leg_press: { weight: 100, successStreak: 1, weightStep: 15 } } },
     workoutPlan,
-    completedWorkout: exactWorkout(100),
+    completedWorkout: completedWorkout([15, 12, 10], [85, 100, 115]),
     baselineProgressionStrategies: { Mike: "fast" },
     userStrategies: { Mike: "pyramid" },
   });

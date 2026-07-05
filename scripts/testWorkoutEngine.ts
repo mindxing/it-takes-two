@@ -37,6 +37,11 @@ const strategies = {
   Victoria: "straight",
 } as const;
 
+const pyramidStrategies = {
+  Mike: "pyramid",
+  Victoria: "pyramid",
+} as const;
+
 const press: Exercise = {
   id: "press",
   name: "Press",
@@ -314,6 +319,78 @@ function effectiveWorkout(session: WorkoutSession, fallback: Exercise[]) {
   session = adjustCurrentWeight({ session, workout, userStrategies: strategies, delta: -500 });
   assert.equal(session.currentWeight, 0);
   assert.equal(session.adjustedBaselines?.press?.Mike, 10);
+}
+
+{
+  const steppedDip: Exercise = {
+    id: "stepped_dip",
+    name: "Stepped Dip",
+    sets: 3,
+    reps: "10-15",
+    defaultReps: 12,
+    setPlan: [
+      { reps: 15, weightOffset: -5 },
+      { reps: 12, weightOffset: 0 },
+      { reps: 10, weightOffset: 5 },
+    ],
+  };
+  const steppedProfiles: Record<Person, Record<string, number>> = {
+    Mike: { stepped_dip: 125 },
+    Victoria: { stepped_dip: 65 },
+  };
+  const steppedWeightSteps = {
+    Mike: { stepped_dip: 20 },
+    Victoria: { stepped_dip: 20 },
+  };
+  const workout = [steppedDip];
+  let session = startWorkoutSession("session-stepped-pyramid", workout);
+
+  session = chooseFirstPerson({
+    session,
+    workout,
+    userProfiles: steppedProfiles,
+    userStrategies: pyramidStrategies,
+    userWeightSteps: steppedWeightSteps,
+    firstPerson: "Mike",
+  });
+
+  assert.equal(currentWorkoutPrompt(session, workout).weight, 105);
+
+  session = recordSetAndAdvance({
+    session,
+    workout,
+    userProfiles: steppedProfiles,
+    userStrategies: pyramidStrategies,
+    userWeightSteps: steppedWeightSteps,
+    status: "completed",
+    completedAt: "2026-05-25T12:00:00.000Z",
+    createSessionId: () => "generated-session",
+  });
+  session = recordSetAndAdvance({
+    session,
+    workout,
+    userProfiles: steppedProfiles,
+    userStrategies: pyramidStrategies,
+    userWeightSteps: steppedWeightSteps,
+    status: "completed",
+    completedAt: "2026-05-25T12:00:00.000Z",
+    createSessionId: () => "generated-session",
+  });
+
+  assert.equal(currentWorkoutPrompt(session, workout).person, "Mike");
+  assert.equal(currentWorkoutPrompt(session, workout).setNumber, 2);
+  assert.equal(currentWorkoutPrompt(session, workout).weight, 125);
+
+  session = adjustCurrentWeight({
+    session,
+    workout,
+    userStrategies: pyramidStrategies,
+    userWeightSteps: steppedWeightSteps,
+    delta: 20,
+  });
+
+  assert.equal(session.currentWeight, 145);
+  assert.equal(session.adjustedBaselines?.stepped_dip?.Mike, 145);
 }
 
 {

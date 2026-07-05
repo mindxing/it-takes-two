@@ -1,3 +1,5 @@
+import { plannedWeight, normalizedWeightStep } from "./weightSteps.ts";
+
 export type BaselineProgressionStrategy = "straight" | "slow" | "medium" | "fast";
 
 export type UserWeights = Record<string, number>;
@@ -89,14 +91,17 @@ function targetResultsForPerson(
 
 function plannedTotalForTarget(
   baselineWeight: number,
+  weightStep: number | undefined,
   target: { setPlan: SetTarget[] },
   strategy: "pyramid" | "straight"
 ) {
   return target.setPlan.reduce((total, setTarget) => {
     const plannedReps = strategy === "straight" ? target.setPlan[0].reps : setTarget.reps;
-    const plannedWeight = baselineWeight + (strategy === "pyramid" ? setTarget.weightOffset : 0);
+    const targetWeight = strategy === "pyramid"
+      ? plannedWeight(baselineWeight, setTarget.weightOffset, weightStep)
+      : baselineWeight;
 
-    return total + plannedReps * plannedWeight;
+    return total + plannedReps * targetWeight;
   }, 0);
 }
 
@@ -113,12 +118,16 @@ function baselineProgressionThreshold(strategy: BaselineProgressionStrategy) {
   return Number.POSITIVE_INFINITY;
 }
 
-function roundBaselineIncrease(weight: number) {
-  return Math.ceil((weight * 1.05) / 5) * 5;
+function roundBaselineIncrease(weight: number, weightStep?: number) {
+  const step = normalizedWeightStep(weightStep);
+
+  return Math.ceil((weight * 1.05) / step) * step;
 }
 
-function roundBaselineDecrease(weight: number) {
-  return Math.max(0, Math.floor((weight * 0.95) / 5) * 5);
+function roundBaselineDecrease(weight: number, weightStep?: number) {
+  const step = normalizedWeightStep(weightStep);
+
+  return Math.max(0, Math.floor((weight * 0.95) / step) * step);
 }
 
 export function calculateProgressedBaselineStates({
@@ -163,12 +172,13 @@ export function calculateProgressedBaselineStates({
           successStreak: 0,
         };
         const currentWeight = currentBaseline.weight;
+        const currentWeightStep = currentBaseline.weightStep;
         let newBaseline: UserBaseline = { ...currentBaseline };
         let reason: string | null = null;
 
         if (strategy !== "straight") {
           const targetResults = targetResultsForPerson(completedWorkout, person, target);
-          const plannedTotal = plannedTotalForTarget(currentWeight, target, userStrategies[person]);
+          const plannedTotal = plannedTotalForTarget(currentWeight, currentWeightStep, target, userStrategies[person]);
 
           if (targetResults.length > 0 && plannedTotal > 0) {
             const actualTotal = actualTotalForResults(targetResults);
@@ -177,14 +187,14 @@ export function calculateProgressedBaselineStates({
             if (ratio < 0.95) {
               newBaseline = {
                 ...currentBaseline,
-                weight: roundBaselineDecrease(currentWeight),
+                weight: roundBaselineDecrease(currentWeight, currentWeightStep),
                 successStreak: 0,
               };
               reason = `actual work was ${Math.round(ratio * 100)}% of plan`;
             } else if (ratio > 1.05) {
               newBaseline = {
                 ...currentBaseline,
-                weight: roundBaselineIncrease(currentWeight),
+                weight: roundBaselineIncrease(currentWeight, currentWeightStep),
                 successStreak: 0,
               };
               reason = `actual work was ${Math.round(ratio * 100)}% of plan`;
@@ -195,7 +205,7 @@ export function calculateProgressedBaselineStates({
               if (nextSuccessStreak >= threshold) {
                 newBaseline = {
                   ...currentBaseline,
-                  weight: roundBaselineIncrease(currentWeight),
+                  weight: roundBaselineIncrease(currentWeight, currentWeightStep),
                   successStreak: 0,
                 };
                 reason = `${strategy} baseline progression after ${nextSuccessStreak} successful workouts`;
