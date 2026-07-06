@@ -283,11 +283,13 @@ function effectiveWorkout(session: WorkoutSession, fallback: Exercise[]) {
     workout,
     userProfiles: profiles,
     userStrategies: strategies,
+    userRepBaselines: { Victoria: { press: 14 }, Mike: {} },
     firstPerson: "Victoria",
   });
 
+  assert.equal(session.currentReps, 14);
   session = adjustCurrentReps(session, workout, 3);
-  assert.equal(session.currentReps, 15);
+  assert.equal(session.currentReps, 17);
 
   session = complete(session, workout);
   assert.equal(currentWorkoutPrompt(session, workout).person, "Mike");
@@ -296,7 +298,7 @@ function effectiveWorkout(session: WorkoutSession, fallback: Exercise[]) {
   session = complete(session, workout);
   assert.equal(currentWorkoutPrompt(session, workout).person, "Victoria");
   assert.equal(currentWorkoutPrompt(session, workout).setNumber, 2);
-  assert.equal(currentWorkoutPrompt(session, workout).reps, 15);
+  assert.equal(currentWorkoutPrompt(session, workout).reps, 17);
   assert.equal(currentWorkoutPrompt(session, workout).weight, 40);
 }
 

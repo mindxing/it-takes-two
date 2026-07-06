@@ -350,14 +350,14 @@ export type UserProfileSettings = {
   progressionStrategies: Record<string, UserProgressionStrategy>;
   baselineProgressionStrategies: Record<string, BaselineProgressionStrategy>;
 };
-type StoredBaselineValue = number | { weight?: unknown; successStreak?: unknown; weightStep?: unknown };
+type StoredBaselineValue = number | { weight?: unknown; reps?: unknown; successStreak?: unknown; weightStep?: unknown };
 
 function isUserProgressionStrategy(value: unknown): value is UserProgressionStrategy {
   return value === "pyramid" || value === "straight";
 }
 
 function isBaselineProgressionStrategy(value: unknown): value is BaselineProgressionStrategy {
-  return value === "straight" || value === "slow" || value === "medium" || value === "fast";
+  return value === "straight" || value === "manual" || value === "slow" || value === "medium" || value === "fast";
 }
 
 export async function loadUserProfiles(defaults: Record<string, UserWeights>): Promise<Record<string, UserWeights>> {
@@ -369,7 +369,7 @@ function defaultProgressionStrategy(person: string): UserProgressionStrategy {
 }
 
 function defaultBaselineProgressionStrategy(person: string): BaselineProgressionStrategy {
-  return person === "Victoria" ? "straight" : "medium";
+  return person === "Victoria" ? "manual" : "medium";
 }
 
 function parseStoredBaselines(baselines: Record<string, StoredBaselineValue> | undefined): UserBaselines {
@@ -385,6 +385,7 @@ function parseStoredBaselines(baselines: Record<string, StoredBaselineValue> | u
     } else if (baseline && typeof baseline.weight === "number") {
       parsedBaselines[exerciseId] = {
         weight: baseline.weight,
+        ...(typeof baseline.reps === "number" && baseline.reps >= 0 ? { reps: baseline.reps } : {}),
         successStreak: typeof baseline.successStreak === "number" ? baseline.successStreak : 0,
         ...(typeof baseline.weightStep === "number" && baseline.weightStep > 0 ? { weightStep: baseline.weightStep } : {}),
       };
@@ -464,6 +465,7 @@ function prepareStoredBaselines(baselines: UserBaselines) {
       exerciseId,
       {
         weight: baseline.weight,
+        ...(typeof baseline.reps === "number" && baseline.reps >= 0 ? { reps: baseline.reps } : {}),
         successStreak: baseline.successStreak,
         ...(typeof baseline.weightStep === "number" && baseline.weightStep > 0 ? { weightStep: baseline.weightStep } : {}),
       },

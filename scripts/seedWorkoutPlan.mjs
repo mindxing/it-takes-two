@@ -193,7 +193,7 @@ const userProfiles = {
     id: "Victoria",
     displayName: "Victoria",
     progressionStrategy: "straight",
-    baselineProgressionStrategy: "straight",
+    baselineProgressionStrategy: "manual",
     active: true,
   },
 };

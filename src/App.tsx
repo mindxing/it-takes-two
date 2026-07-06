@@ -24,6 +24,7 @@ import {
   switchToTandemCompanion,
   tandemCompanionPrompt,
   type SetStatus,
+  type UserRepBaselines,
   type UserWeightSteps,
   type WeightStrategy,
   type WorkoutSession,
@@ -164,13 +165,28 @@ function weightStepsFromBaselineStates(baselines: Record<Person, UserBaselines>)
   } satisfies Partial<UserWeightSteps>;
 }
 
+function repBaselinesFromBaselineStates(baselines: Record<Person, UserBaselines>) {
+  return {
+    Mike: Object.fromEntries(
+      Object.entries(baselines.Mike)
+        .filter(([, baseline]) => typeof baseline.reps === "number" && baseline.reps >= 0)
+        .map(([exerciseId, baseline]) => [exerciseId, baseline.reps as number])
+    ),
+    Victoria: Object.fromEntries(
+      Object.entries(baselines.Victoria)
+        .filter(([, baseline]) => typeof baseline.reps === "number" && baseline.reps >= 0)
+        .map(([exerciseId, baseline]) => [exerciseId, baseline.reps as number])
+    ),
+  } satisfies Partial<UserRepBaselines>;
+}
+
 const defaultUserStrategies: Record<Person, WeightStrategy> = {
   Mike: "pyramid",
   Victoria: "straight",
 };
 const defaultBaselineProgressionStrategies: Record<Person, BaselineProgressionStrategy> = {
   Mike: "medium",
-  Victoria: "straight",
+  Victoria: "manual",
 };
 const weightStepOptions = [1, 2.5, 5, 10, 15, 20];
 type BaselineChangeSymbol = "up" | "same" | "down";
@@ -373,6 +389,7 @@ function App() {
     ? userBaselineStates[currentPerson]?.[currentWeightKey]?.weightStep ?? 5
     : 5;
   const userWeightSteps = weightStepsFromBaselineStates(userBaselineStates);
+  const userRepBaselines = repBaselinesFromBaselineStates(userBaselineStates);
   const tandemCompanion = session.tandem
     ? tandemCompanionPrompt({
       session,
@@ -380,6 +397,7 @@ function App() {
       userProfiles,
       userStrategies,
       userWeightSteps,
+      userRepBaselines,
     })
     : null;
   const availableTandemExercises = session.started && !session.firstPerson && session.exerciseIndex > 0
@@ -601,6 +619,7 @@ function App() {
       userProfiles,
       userStrategies,
       userWeightSteps,
+      userRepBaselines,
     });
 
     if (nextSession !== sessionRef.current) {
@@ -840,6 +859,7 @@ function App() {
       userProfiles,
       userStrategies,
       userWeightSteps,
+      userRepBaselines,
       status,
       completedAt,
       createSessionId,
@@ -1319,6 +1339,7 @@ function App() {
                   userProfiles,
                   userStrategies,
                   userWeightSteps,
+                  userRepBaselines,
                   firstPerson: "Victoria",
                   tandemExerciseId,
                 });
@@ -1341,6 +1362,7 @@ function App() {
                   userProfiles,
                   userStrategies,
                   userWeightSteps,
+                  userRepBaselines,
                   firstPerson: "Mike",
                   tandemExerciseId,
                 });

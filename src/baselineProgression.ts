@@ -1,12 +1,13 @@
 import { plannedWeight, normalizedWeightStep } from "./weightSteps.ts";
 
-export type BaselineProgressionStrategy = "straight" | "slow" | "medium" | "fast";
+export type BaselineProgressionStrategy = "straight" | "manual" | "slow" | "medium" | "fast";
 
 export type UserWeights = Record<string, number>;
 
 export type UserBaseline = {
   weight: number;
   successStreak: number;
+  reps?: number;
   weightStep?: number;
 };
 
@@ -124,6 +125,13 @@ function roundBaselineIncrease(weight: number, weightStep?: number) {
   return Math.ceil((weight * 1.05) / step) * step;
 }
 
+function lastCompletedResult(results: BaselineSetResult[]) {
+  return results
+    .filter((result) => result.status === "completed")
+    .sort((a, b) => a.setNumber - b.setNumber)
+    .at(-1);
+}
+
 function roundBaselineDecrease(weight: number, weightStep?: number) {
   const step = normalizedWeightStep(weightStep);
 
@@ -176,8 +184,21 @@ export function calculateProgressedBaselineStates({
         let newBaseline: UserBaseline = { ...currentBaseline };
         let reason: string | null = null;
 
-        if (strategy !== "straight") {
-          const targetResults = targetResultsForPerson(completedWorkout, person, target);
+        const targetResults = targetResultsForPerson(completedWorkout, person, target);
+
+        if (strategy === "manual") {
+          const lastResult = lastCompletedResult(targetResults);
+
+          if (lastResult) {
+            newBaseline = {
+              ...currentBaseline,
+              weight: lastResult.weight,
+              reps: lastResult.reps,
+              successStreak: 0,
+            };
+            reason = "manual baseline set from last completed set";
+          }
+        } else if (strategy !== "straight") {
           const plannedTotal = plannedTotalForTarget(currentWeight, currentWeightStep, target, userStrategies[person]);
 
           if (targetResults.length > 0 && plannedTotal > 0) {

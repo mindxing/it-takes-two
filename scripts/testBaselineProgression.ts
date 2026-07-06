@@ -285,6 +285,44 @@ function calculate({
 }
 
 {
+  const result = calculateProgressedBaselineStates({
+    currentProfiles: { Victoria: { leg_press: 95 } },
+    currentBaselineStates: { Victoria: { leg_press: { weight: 95, reps: 12, successStreak: 3, weightStep: 20 } } },
+    workoutPlan,
+    completedWorkout: {
+      results: [
+        {
+          exerciseId: "leg_press",
+          exerciseName: "Leg Press",
+          person: "Victoria",
+          setNumber: 1,
+          reps: 13,
+          weight: 100,
+          status: "completed",
+        },
+        {
+          exerciseId: "leg_press",
+          exerciseName: "Leg Press",
+          person: "Victoria",
+          setNumber: 2,
+          reps: 11,
+          weight: 120,
+          status: "completed",
+        },
+      ],
+    },
+    baselineProgressionStrategies: { Victoria: "manual" },
+    userStrategies: { Victoria: "straight" },
+  });
+
+  assert.equal(result.updatedBaselineStates.Victoria.leg_press.weight, 120);
+  assert.equal(result.updatedBaselineStates.Victoria.leg_press.reps, 11);
+  assert.equal(result.updatedBaselineStates.Victoria.leg_press.successStreak, 0);
+  assert.equal(result.updatedBaselineStates.Victoria.leg_press.weightStep, 20);
+  assert.equal(result.updatedProfiles.Victoria.leg_press, 120);
+}
+
+{
   const result = calculate({
     workout: { results: [] },
     successStreak: 2,
