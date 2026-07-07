@@ -1,4 +1,4 @@
-import { plannedWeight, normalizedWeightStep } from "./weightSteps.ts";
+import { plannedWeight, progressedWeightDecrease, progressedWeightIncrease } from "./weightSteps.ts";
 
 export type BaselineProgressionStrategy = "straight" | "manual" | "slow" | "medium" | "fast";
 
@@ -120,9 +120,7 @@ function baselineProgressionThreshold(strategy: BaselineProgressionStrategy) {
 }
 
 function roundBaselineIncrease(weight: number, weightStep?: number) {
-  const step = normalizedWeightStep(weightStep);
-
-  return Math.ceil((weight * 1.05) / step) * step;
+  return progressedWeightIncrease(weight, weightStep);
 }
 
 function lastCompletedResult(results: BaselineSetResult[]) {
@@ -133,9 +131,7 @@ function lastCompletedResult(results: BaselineSetResult[]) {
 }
 
 function roundBaselineDecrease(weight: number, weightStep?: number) {
-  const step = normalizedWeightStep(weightStep);
-
-  return Math.max(0, Math.floor((weight * 0.95) / step) * step);
+  return progressedWeightDecrease(weight, weightStep);
 }
 
 export function calculateProgressedBaselineStates({

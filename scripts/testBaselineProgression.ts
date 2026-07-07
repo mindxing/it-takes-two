@@ -280,8 +280,22 @@ function calculate({
     userStrategies: { Mike: "pyramid" },
   });
 
-  assert.equal(result.updatedBaselineStates.Mike.leg_press.weight, 105);
+  assert.equal(result.updatedBaselineStates.Mike.leg_press.weight, 115);
   assert.equal(result.updatedBaselineStates.Mike.leg_press.weightStep, 15);
+}
+
+{
+  const result = calculateProgressedBaselineStates({
+    currentProfiles: { Mike: { leg_press: 95 } },
+    currentBaselineStates: { Mike: { leg_press: { weight: 95, successStreak: 2, weightStep: 20 } } },
+    workoutPlan,
+    completedWorkout: completedWorkout([10, 8, 6], [75, 95, 115]),
+    baselineProgressionStrategies: { Mike: "medium" },
+    userStrategies: { Mike: "pyramid" },
+  });
+
+  assert.equal(result.updatedBaselineStates.Mike.leg_press.weight, 75);
+  assert.equal(result.updatedBaselineStates.Mike.leg_press.weightStep, 20);
 }
 
 {
